@@ -1,6 +1,8 @@
 ## Autonomous Blocker Recovery
 
-This contract applies to all `sp-*` workflows. Invoking a workflow authorizes
+This contract applies to all `sp-*` workflows, including delegated lanes.
+For every `sp-*` workflow, keep the failed gate closed: the failed gate remains closed
+during recovery; it does not end the invocation by itself. Invoking a workflow authorizes
 necessary diagnosis, safe recovery, verification, and continuation within the
 current goal, available permissions, and that workflow's allowed side effects.
 Do not ask for routine permission to take an obvious, reversible next step.
@@ -58,6 +60,31 @@ When a failure blocks the workflow's objective:
    workflow to its full completion criteria. A successful repair or one passing
    lane is progress, not completion. Revalidate affected downstream evidence.
 
+Choose the smallest recovery that fits the observed failure:
+
+- Missing input: locate and validate existing source artifacts, paths, local
+  tools, and documented prerequisites; restore reproducible inputs through their
+  owner. Never invent requirements, approval, evidence, or accepted dependencies.
+- CLI/schema/revision failure: inspect the installed API/help and current owner
+  state, correct the payload or stale binding, then use its declared guarded
+  recovery/resume operation. Never edit runtime storage or reset a workflow to
+  clear a gate. Recover interrupted processes and side effects before retrying.
+- Delegation failure: discover the actual native surface, repair the packet,
+  redispatch a failed lane, or serialize overlapping writes. Preserve mandatory
+  delegation and independent acceptance; use only a fallback the owner permits.
+- Validation failure: diagnose and repair remaining supported defects rather
+  than stopping because one autofix failed. Read-only/review workflows retain
+  their source-write boundary and route product changes to their declared owner.
+- Advisory cognition unavailable: continue with bounded live evidence where the
+  workflow permits it. Required cognition closeout still uses runtime-owned
+  inspection/repair/replay; unavailable navigation never proves completion.
+
+Honor the user's verification budget. Reuse unchanged valid evidence and run
+the narrowest meaningful repair check plus the interrupted gate; recovery does
+not authorize a full test suite or unrelated cleanup. Continue independent safe
+lanes while a dependent gate is closed. Give concise progress updates during
+recovery instead of requesting routine permission to investigate or repair.
+
 Stop only when no safe authorized agent action remains and evidence proves a
 real human or external boundary: unavailable credentials or permission that
 the Agent cannot request, a protected external system, an unauthorized external
@@ -70,3 +97,8 @@ may require a resumable incomplete result; keep its real owner and set
 `human_action_required: false` unless a specific human action is necessary.
 Never weaken acceptance criteria, skip mandatory checks, fabricate evidence,
 overwrite unrelated user changes, or label partial work complete.
+
+An immutable upstream contract requiring a new user decision or an unavailable
+mandatory capability may require its declared handoff. Recovery grants no new stage authority,
+source-write permission, or cross-workflow invocation. A blocked state is resumable work,
+never successful completion.

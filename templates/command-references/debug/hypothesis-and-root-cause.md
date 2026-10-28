@@ -8,7 +8,7 @@ Session mutation contract: `SESSION PATCH <fields-or-sections>` means build the 
 
 ## Hypothesis And Root Cause
 
-`Stage 1A Causal Map -> Stage 1B Investigation Contract + Log Investigation Plan -> Evidence Investigation -> Fixing -> Verifying -> Human Verify`
+`Stage 1A Causal Map -> Stage 1B Investigation Contract + Log Investigation Plan -> Evidence Investigation -> Repair Confirmation -> Fixing -> Verifying -> Human Verify`
 - `Stage 1A: Causal Map`
 - `causal_map_completed: true`
   - primary map-backed candidate,
@@ -44,7 +44,7 @@ Session mutation contract: `SESSION PATCH <fields-or-sections>` means build the 
 ### Required Framing Before Hypothesis
 - Before committing to a root-cause theory, persist a **Truth Ownership Map** through a fresh `specify-runtime artifact patch --section` lease:
 - For runtime bug investigations where the leader cannot access the needed logs directly, produce a concrete user log request packet before fixing. Include the time window, target system, identifiers or correlation keys, exact log sources, and the expected candidate-separating signals.
-- If two hypothesis/experiment cycles fail to converge, escalate observability explicitly. Add instrumentation that can directly falsify the remaining competing explanations instead of applying another surface-level fix.
+- If two hypothesis/experiment cycles fail to converge, escalate observability explicitly. Explain and obtain bounded `diagnostic-enablement` approval before adding persistent instrumentation that can directly falsify the remaining competing explanations. It authorizes no production fix; return to diagnosis and the evidence-backed repair checkpoint afterward.
 ### Stage 6: Hypothesis Formation
 - Form one specific, falsifiable hypothesis from the evidence.
 - `SESSION PATCH` the hypothesis, the test to run, and the expected result into `Current Focus`.
@@ -52,7 +52,7 @@ Session mutation contract: `SESSION PATCH <fields-or-sections>` means build the 
 - State why the hypothesis targets the owning layer or control state rather than a downstream projection.
 - Run one experiment for the active hypothesis.
 - If the result disproves the hypothesis, add it to `Eliminated` in memory, persist the complete section with `SESSION PATCH`, and return to Stage 5.
-- If the result confirms the failure mechanism, `SESSION PATCH` the root cause and continue to fixing.
+- If the result confirms the failure mechanism, `SESSION PATCH` the root cause and prepare the concrete repair checkpoint before fixing. Explain decisive evidence and the proposed repair; do not ask the user to approve an agent-owned hypothesis.
 - Before leaving this stage, `SESSION PATCH` which plausible causes were considered and which were ruled out so the session shows real causal spread instead of a single-path guess.
 - `SESSION PATCH` any **rejected surface fixes** that improved symptoms without restoring the control loop, so future resumes do not mistake symptom relief for root-cause resolution.
 ### Stage 8: Root Cause Confirmation

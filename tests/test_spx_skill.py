@@ -23,6 +23,7 @@ from specify_cli.launcher import (
 from specify_cli.orchestration import CapabilitySnapshot
 from specify_cli.specify_runtime import project_runtime_launcher_arg
 
+from .template_utils import read_cognition_contract
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ADVANCED_SKILLS = PROJECT_ROOT / "templates" / "advanced-skills"
@@ -209,9 +210,23 @@ def test_spx_sources_are_independent_and_discoverable() -> None:
         "claim_retrieval_contract_version",
         "candidate_universe_version",
         "v1.3.",
-        "understanding_confirmed",
     ):
         assert forbidden.lower() not in combined
+    debug = (ADVANCED_SKILLS / "spx-debug" / "SKILL.md").read_text(encoding="utf-8")
+    quick = (ADVANCED_SKILLS / "spx-quick" / "SKILL.md").read_text(encoding="utf-8")
+    assert "understanding_confirmed" in debug
+    assert "evidence-backed-repair" in debug
+    other_workflows = combined.replace(debug.lower(), "").replace(quick.lower(), "")
+    assert "understanding_confirmed" not in other_workflows
+    quick_contract = re.sub(r"\s+", " ", quick.lower())
+    assert "wait for the real user reply approving that exact proposal before implementation" in quick_contract
+    assert "checkpoint-confirm --digest" in quick_contract
+    assert (
+        "never replace that binding with a hand-patched `understanding_confirmed: true` "
+        "or an auto recommendation"
+    ) in quick_contract
+    assert "valid unchanged confirmed or inherited decisions need no second approval" in quick_contract
+    assert "a raw request or an unexplained menu is not approval" in quick_contract
 
 
 def test_spx_blocked_exit_requires_detailed_human_recovery_only_at_human_boundaries() -> (
@@ -717,11 +732,9 @@ def test_spx_ui_quality_contract_survives_design_to_implementation() -> None:
 
 
 def test_spx_shared_project_cognition_contract_is_tool_driven() -> None:
-    content = (
-        (ADVANCED_SKILLS / "_shared" / "project-cognition.md")
-        .read_text(encoding="utf-8")
-        .lower()
-    )
+    content = read_cognition_contract(
+        ADVANCED_SKILLS / "_shared" / "project-cognition.md"
+    ).lower()
 
     for required in (
         "specify-runtime cognition compass",

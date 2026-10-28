@@ -56,7 +56,10 @@ its binding fields. Missing capability routes to runtime repair/upgrade.
 
 Run
 `{{specify-subcmd:specify-runtime hook validate-state --command tasks --feature-dir <feature-dir> --autofix --format json}}`
-and stop if it remains invalid. Require the plan's ready transition to
+and withhold dependent writes if it remains invalid. Diagnose and repair
+current-owner state through supported runtime routes, then rerun this gate in
+the same invocation; never hand-edit state or bypass validation. A proven
+upstream truth gap still returns to its owner. Require the plan's ready transition to
 `sp-tasks`, locked target boundary, current revision, and zero unresolved
 planning blockers.
 

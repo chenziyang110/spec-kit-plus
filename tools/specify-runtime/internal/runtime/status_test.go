@@ -6,9 +6,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
+
+func TestUnsupportedLegacyPayloadRequiresGuardedInspection(t *testing.T) {
+	payload := UnsupportedLegacyPayload(Paths{})
+	want := []string{"specify-runtime", "cognition", "archive-incompatible-store", "--inspect", "--format", "json"}
+	if payload.RecommendedNextAction != "inspect_incompatible_store" || !reflect.DeepEqual(payload.NextArgv, want) ||
+		!strings.Contains(strings.Join(payload.Errors, " "), IncompatibleStoreRecovery) {
+		t.Fatalf("legacy recovery = %#v, want guarded read-only inspection first", payload)
+	}
+}
 
 func TestReadStatusReturnsDefaultWhenMissing(t *testing.T) {
 	root := t.TempDir()

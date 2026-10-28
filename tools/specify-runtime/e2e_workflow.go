@@ -13,7 +13,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/closeout"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/filelock"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/workerdelta"
 )
 
 var e2eIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
@@ -143,15 +145,16 @@ type e2eSubmissionInput struct {
 	Checks       []e2eCheck      `json:"checks"`
 }
 type e2eSubmission struct {
-	SchemaVersion     string          `json:"schema_version"`
-	Packet            e2eRef          `json:"packet"`
-	WorkerID          string          `json:"worker_id"`
-	WorkerResult      map[string]any  `json:"worker_result"`
-	WorkerResultInput json.RawMessage `json:"worker_result_input"`
-	Outcome           string          `json:"outcome"`
-	Checks            []e2eCheck      `json:"checks"`
-	Outputs           []e2eBinding    `json:"outputs"`
-	Evidence          []e2eBinding    `json:"evidence"`
+	SchemaVersion          string          `json:"schema_version"`
+	Packet                 e2eRef          `json:"packet"`
+	WorkerID               string          `json:"worker_id"`
+	WorkerResult           map[string]any  `json:"worker_result"`
+	WorkerResultInput      json.RawMessage `json:"worker_result_input"`
+	Outcome                string          `json:"outcome"`
+	Checks                 []e2eCheck      `json:"checks"`
+	Outputs                []e2eBinding    `json:"outputs"`
+	Evidence               []e2eBinding    `json:"evidence"`
+	CognitionResultBinding map[string]any  `json:"cognition_result_binding,omitempty"`
 }
 type e2eReviewPacket struct {
 	SchemaVersion    string         `json:"schema_version"`
@@ -204,12 +207,20 @@ type e2eCloseout struct {
 	NonpassingTaskIDs []string          `json:"nonpassing_task_ids"`
 }
 type e2eService struct {
-	projectRoot  string
-	runID        string
-	rootRef      string
-	observed     map[string]string
-	pendingBlobs map[string][]byte
-	beforeCommit func() error
+	projectRoot          string
+	runID                string
+	rootRef              string
+	observed             map[string]string
+	pendingBlobs         map[string][]byte
+	beforeCommit         func() error
+	view                 e2eViewOptions
+	viewState            *e2eState
+	diagnostics          []e2eDiagnostic
+	diagnosticsState     string
+	readinessBlocked     bool
+	lastDiagnosticEvent  e2eRef
+	diagnosticEventCount int
+	immutable            e2eImmutableCache
 }
 
 func runE2E(args []string, stdout io.Writer) int {
@@ -246,13 +257,15 @@ func runE2E(args []string, stdout io.Writer) int {
 }
 
 func e2eValidateOptions(args []string) error {
-	allowed := map[string]bool{"--run-id": true, "--project-root": true, "--format": true}
-	if args[0] != "init" && args[0] != "status" {
+	allowed := map[string]bool{"--run-id": true, "--project-root": true, "--format": true, "--view": true, "--offset": true, "--limit": true}
+	if args[0] != "init" && !e2eReadOnlyAction(args[0]) {
 		allowed["--expected-revision"] = true
 	}
 	switch args[0] {
 	case "init":
 		allowed["--leader-id"], allowed["--input-json"] = true, true
+	case "task-show":
+		allowed["--task-id"] = true
 	case "scope-add":
 		allowed["--leader-id"], allowed["--input-json"], allowed["--reason"], allowed["--evidence-ref"] = true, true, true, true
 	case "task-start":
@@ -288,12 +301,33 @@ func e2eValidateOptions(args []string) error {
 	if optionValue(args, "--format", "json") != "json" {
 		return fmt.Errorf("e2e requires --format json")
 	}
-	return nil
+	_, err := e2eParseViewOptions(args)
+	return err
 }
 
-func (service *e2eService) run(action string, args []string) Envelope {
+func (service *e2eService) run(action string, args []string) (env Envelope) {
+	service.resetReadRequest()
+	view, err := e2eParseViewOptions(args)
+	if err != nil {
+		return e2eFailure("usage-error", "invalid e2e view", err)
+	}
+	service.view, service.viewState = view, nil
+	service.diagnostics, service.diagnosticsState, service.readinessBlocked = nil, "current", false
+	service.lastDiagnosticEvent, service.diagnosticEventCount = e2eRef{}, 0
+	defer func() {
+		if service.view.Mode == "compact" && service.viewState != nil {
+			service.compactEnvelope(&env, service.viewState)
+		}
+		if service.viewState != nil {
+			service.addReadiness(&env, service.viewState)
+			service.addDiagnostics(&env, service.viewState)
+		}
+	}()
 	if action == "status" {
 		return service.status()
+	}
+	if action == "task-show" {
+		return service.taskShow(args)
 	}
 	lockPath, err := secureProjectPath(service.projectRoot, ".specify/runtime/e2e/locks/"+service.runID+".lock")
 	if err != nil {
@@ -312,22 +346,35 @@ func (service *e2eService) run(action string, args []string) Envelope {
 	}
 	state, err := service.readState()
 	if err != nil {
-		return e2eFailure("blocked", "e2e state is unavailable", err)
+		return service.unavailable("e2e state is unavailable", err)
 	}
 	revision, err := strconv.Atoi(optionValue(args, "--expected-revision", ""))
 	if err != nil || revision != state.Revision {
+		service.readinessBlocked = true
 		return service.failureWithState("blocked", "e2e revision changed; inspect status before retry", &state, fmt.Errorf("expected revision %d", state.Revision))
 	}
 	if action == "reopen" {
 		return service.reopen(&state, args)
 	}
-	stale := service.staleTasks(&state)
+	stale, corrupt := service.diagnoseState(&state)
+	if corrupt {
+		return service.failureWithState("blocked", "immutable E2E evidence is corrupt; restore the exact original bytes before recovery", &state, nil)
+	}
 	if len(stale) > 0 {
 		ids := e2eInvalidate(&state, stale, "bound source, output, review or evidence bytes changed")
+		event := map[string]any{"schema_version": "e2e-invalidation-v1", "run_id": state.RunID, "from_revision": state.Revision, "diagnostics": service.diagnostics, "invalidated_task_ids": ids}
+		ref, raw, err := service.snapshot(event)
+		if err != nil {
+			return e2eFailure("error", "cannot render E2E invalidation evidence", err)
+		}
+		state.Events = append(state.Events, ref)
+		service.lastDiagnosticEvent = ref
+		service.diagnosticEventCount++
 		state.Revision++
-		if err := service.persist(&state, "invalidate", nil); err != nil {
+		if err := service.persist(&state, "invalidate", map[string][]byte{ref.Ref: raw}); err != nil {
 			return e2eFailure("error", "cannot persist e2e invalidation", err)
 		}
+		service.diagnosticsState, service.readinessBlocked = "invalidated", false
 		env := service.failureWithState("blocked", "e2e bindings became stale; affected tasks and consumers were reopened", &state, nil)
 		env.Data["invalidated_task_ids"] = ids
 		return env
@@ -388,9 +435,12 @@ func (service *e2eService) initialize(args []string) Envelope {
 func (service *e2eService) status() Envelope {
 	state, err := service.readState()
 	if err != nil {
-		return e2eFailure("blocked", "e2e state is unavailable", err)
+		return service.unavailable("e2e state is unavailable", err)
 	}
-	stale := service.staleTasks(&state)
+	stale, corrupt := service.diagnoseState(&state)
+	if corrupt {
+		return service.failureWithState("blocked", "immutable E2E evidence is corrupt; no state was reset", &state, nil)
+	}
 	if len(stale) > 0 {
 		ids := e2eInvalidate(&state, stale, "read-only status detected stale bindings")
 		env := service.failureWithState("blocked", "E2E has stale artifacts; no previous acceptance may be consumed", &state, nil)
@@ -406,19 +456,14 @@ func (service *e2eService) taskStart(state *e2eState, args []string) Envelope {
 		return service.failureWithState("invalid", "unknown e2e task", state, err)
 	}
 	task := &state.Tasks[index]
-	if task.Status != "pending" {
-		return service.failureWithState("blocked", "task-start requires a pending task; reopen rejected or accepted work explicitly", state, nil)
-	}
 	worker := optionValue(args, "--worker-id", "")
-	if !e2eIdentity(worker) || worker == state.LeaderID {
-		return service.failureWithState("blocked", "task requires a separately recorded worker identity", state, nil)
-	}
 	diagnostic := hasFlag(args, "--diagnostic")
-	if diagnostic && task.Contract.Stage < 6 {
-		return service.failureWithState("invalid", "diagnostic task-start is limited to audit/report stages 6 and 7", state, nil)
-	}
-	if task.Contract.Stage == 6 && e2eAncestorAuthorConflict(state, index, worker) {
-		return service.failureWithState("blocked", "stage 6 audit worker participated in producing an audited dependency", state, nil)
+	if reasons := service.startReasons(state, index, diagnostic, &worker); len(reasons) > 0 {
+		status := "blocked"
+		if diagnostic && task.Contract.Stage < 6 {
+			status = "invalid"
+		}
+		return service.failureWithState(status, "task-start prerequisites, ownership or identity are not ready", state, fmt.Errorf("%s: %s", reasons[0].Kind, reasons[0].Reason))
 	}
 	packet := e2ePacket{SchemaVersion: "e2e-worker-packet-v1", RunID: state.RunID, TaskID: task.Contract.ID, AttemptID: fmt.Sprintf("%s-%04d", task.Contract.ID, task.Attempt+1), WorkerID: worker, Contract: task.Contract, ContractSHA256: e2eContractDigest(state, task.Contract), Scope: e2eScopeForTask(state, task.Contract), Dependencies: []e2eDependencyBinding{}, Diagnostic: diagnostic, DiagnosticInputs: []e2eDiagnosticBinding{}}
 	for _, dep := range e2eDependencies(state, task.Contract) {
@@ -436,14 +481,6 @@ func (service *e2eService) taskStart(state *e2eState, args []string) Envelope {
 			return service.failureWithState("blocked", "accepted producer outputs are unavailable", state, err)
 		}
 		packet.Dependencies = append(packet.Dependencies, e2eDependencyBinding{TaskID: dep.TaskID, Require: dep.Require, Acceptance: producer.Acceptance, Outputs: submitted.Outputs})
-	}
-	for i, other := range state.Tasks {
-		if i == index || !e2eContains([]string{"running", "submitted", "reviewing", "verified"}, other.Status) {
-			continue
-		}
-		if e2ePathsOverlap(task.Contract.Outputs, other.Contract.Outputs) || e2ePathsOverlap(task.Contract.Outputs, other.Contract.Inputs) || e2ePathsOverlap(task.Contract.Inputs, other.Contract.Outputs) || e2eOverlap(task.Contract.Resources, other.Contract.Resources) {
-			return service.failureWithState("blocked", "active e2e task owns overlapping read/write paths or exclusive resources", state, fmt.Errorf("%s conflicts with %s", task.Contract.ID, other.Contract.ID))
-		}
 	}
 	packet.Inputs, err = service.bindFiles(task.Contract.Inputs)
 	if err != nil {
@@ -487,38 +524,46 @@ func (service *e2eService) taskSubmit(state *e2eState, args []string) Envelope {
 		return service.failureWithState("blocked", "submission must match the active worker attempt", state, nil)
 	}
 	var input e2eSubmissionInput
-	if err := service.input(args, "--result-json", &input); err != nil {
-		return service.failureWithState("invalid", "invalid worker submission", state, err)
+	inputBytes, inputErr := resolveAgentJSONInputBytes(optionValue(args, "--result-json", ""), service.projectRoot, "e2e --result-json")
+	if inputErr != nil {
+		return service.failureWithState("invalid", "invalid worker submission", state, inputErr)
+	}
+	if err := e2eDecode(inputBytes, &input); err != nil {
+		// The active owner records malformed input as unaccounted retained
+		// change evidence; it cannot promote a submission or passing outcome.
+		return service.rejectWorkerSubmission(state, task, e2eSubmissionInput{WorkerResult: inputBytes}, "invalid worker submission", err, inputBytes)
 	}
 	if input.PacketSHA256 != task.Packet.SHA256 || !e2eContains([]string{"pass", "failed", "blocked"}, input.Outcome) {
-		return service.failureWithState("invalid", "submission packet or observed outcome does not match", state, nil)
+		return service.rejectWorkerSubmission(state, task, input, "submission packet or observed outcome does not match", nil, inputBytes)
 	}
 	var packet e2ePacket
 	if err := service.readSnapshot(task.Packet, &packet); err != nil {
 		return service.failureWithState("blocked", "worker packet is unavailable", state, err)
 	}
 	if packet.Diagnostic && input.Outcome == "pass" {
-		return service.failureWithState("invalid", "diagnostic work cannot establish a passing outcome", state, nil)
+		return service.rejectWorkerSubmission(state, task, input, "diagnostic work cannot establish a passing outcome", nil, inputBytes)
 	}
 	workerResult, err := normalizeE2EWorkerResult(input.WorkerResult, input.Outcome)
 	if err != nil {
-		return service.failureWithState("invalid", "invalid WorkerTaskResult", state, err)
+		return service.rejectWorkerSubmission(state, task, input, "invalid WorkerTaskResult", err, inputBytes)
 	}
 	if asString(workerResult["task_id"]) != task.Contract.ID || asString(workerResult["packet_id"]) != task.Packet.SHA256 || asString(workerResult["status"]) == "pending" || strings.TrimSpace(asString(workerResult["summary"])) == "" {
-		return service.failureWithState("invalid", "WorkerTaskResult must match the task and exact packet, with a real non-pending result", state, nil)
+		return service.rejectWorkerSubmission(state, task, input, "WorkerTaskResult must match the task and exact packet, with a real non-pending result", nil, inputBytes)
 	}
 	evidence, allPass, err := service.validateChecks(task.Contract, input.Checks, false)
 	if err != nil {
-		return service.failureWithState("invalid", "every assigned scope/acceptance row requires reproducible evidence", state, err)
+		return service.rejectWorkerSubmission(state, task, input, "every assigned scope/acceptance row requires reproducible evidence", err, inputBytes)
 	}
 	if input.Outcome == "pass" && (!allPass || asString(workerResult["status"]) != "success" || len(asStringList(workerResult["blockers"])) > 0) {
-		return service.failureWithState("invalid", "a passing outcome requires all checks passed and a successful unblocked worker result", state, nil)
+		return service.rejectWorkerSubmission(state, task, input, "a passing outcome requires all checks passed and a successful unblocked worker result", nil, inputBytes)
 	}
 	outputs, err := service.bindFiles(task.Contract.Outputs)
 	if err != nil {
-		return service.failureWithState("invalid", "all declared stage outputs must exist before submission", state, err)
+		return service.rejectWorkerSubmission(state, task, input, "all declared stage outputs must exist before submission", err, inputBytes)
 	}
 	submission := e2eSubmission{SchemaVersion: "e2e-worker-result-v1", Packet: task.Packet, WorkerID: task.WorkerID, WorkerResult: workerResult, WorkerResultInput: input.WorkerResult, Outcome: input.Outcome, Checks: input.Checks, Outputs: outputs, Evidence: evidence}
+	resultBytes, _ := json.Marshal(workerResult)
+	submission.CognitionResultBinding = map[string]any{"schema": workerdelta.BindingSchema, "version": 1, "attempt_id": packet.AttemptID, "task_ref": "e2e:" + state.RunID + "#" + task.Contract.ID, "result_sha256": workerdelta.Digest(resultBytes), "lifecycle_revision": state.Revision, "acceptance_state": "submitted"}
 	ref, raw, err := service.snapshot(submission)
 	if err != nil {
 		return e2eFailure("error", "cannot render e2e submission", err)
@@ -532,6 +577,31 @@ func (service *e2eService) taskSubmit(state *e2eState, args []string) Envelope {
 	env.Data["submission_ref"], env.Data["submission_sha256"] = ref.Ref, ref.SHA256
 	env.NextArgv = service.argv(state, "review-start", "--task-id", task.Contract.ID, "--validator-id", "<independent-agent-id>")
 	return env
+}
+
+func (service *e2eService) rejectWorkerSubmission(state *e2eState, task *e2eTaskState, input e2eSubmissionInput, summary string, cause error, submissionInput []byte) Envelope {
+	reason := summary
+	if cause != nil {
+		reason += ": " + cause.Error()
+	}
+	var candidate map[string]any
+	if len(input.WorkerResult) > 0 {
+		candidate, _ = workerdelta.Decode(input.WorkerResult)
+	}
+	rejected := map[string]any{"schema_version": "e2e-rejected-worker-result-v1", "run_id": state.RunID, "task_id": task.Contract.ID, "attempt": task.Attempt, "packet": task.Packet, "status": "rejected", "worker_result_json": string(input.WorkerResult), "worker_result_sha256": workerdelta.Digest(input.WorkerResult), "retained_paths": workerdelta.Accounting(candidate), "rejection_reason": reason}
+	rejected["submission_input_json"] = string(submissionInput)
+	rejected["submission_input_sha256"] = workerdelta.Digest(submissionInput)
+	rejected["submission_revision"] = state.Revision
+	ref, raw, err := service.snapshot(rejected)
+	if err != nil {
+		return e2eFailure("error", "cannot preserve rejected E2E submission", err)
+	}
+	task.History = append(task.History, ref)
+	state.Revision++
+	if err := service.persist(state, "task-submit-rejected", map[string][]byte{ref.Ref: raw}); err != nil {
+		return e2eFailure("error", "cannot preserve rejected E2E submission", err)
+	}
+	return service.failureWithState("invalid", summary, state, cause)
 }
 
 func (service *e2eService) reviewStart(state *e2eState, args []string) Envelope {
@@ -652,19 +722,27 @@ func (service *e2eService) reopen(state *e2eState, args []string) Envelope {
 	if err != nil || len(evidence) == 0 {
 		return service.failureWithState("invalid", "reopen requires raw evidence for the failed gate", state, err)
 	}
-	seeds := service.staleTasks(state)
+	seeds, corrupt := service.diagnoseState(state)
+	if corrupt {
+		return service.failureWithState("blocked", "immutable E2E evidence is corrupt; reopen cannot discard it", state, nil)
+	}
 	seeds[id] = true
 	ids := e2eInvalidate(state, seeds, reason)
-	event := map[string]any{"schema_version": "e2e-reopen-v1", "run_id": state.RunID, "from_revision": state.Revision, "leader_id": state.LeaderID, "earliest_task_id": id, "reason": reason, "evidence": evidence, "invalidated_task_ids": ids}
+	event := map[string]any{"schema_version": "e2e-reopen-v1", "run_id": state.RunID, "from_revision": state.Revision, "leader_id": state.LeaderID, "earliest_task_id": id, "reason": reason, "evidence": evidence, "invalidated_task_ids": ids, "diagnostics": service.diagnostics}
 	ref, raw, err := service.snapshot(event)
 	if err != nil {
 		return e2eFailure("error", "cannot render reopen event", err)
 	}
 	state.Events = append(state.Events, ref)
+	if len(service.diagnostics) > 0 {
+		service.lastDiagnosticEvent = ref
+		service.diagnosticEventCount++
+	}
 	state.Revision++
 	if err := service.persist(state, "reopen", map[string][]byte{ref.Ref: raw}); err != nil {
 		return e2eFailure("error", "cannot reopen e2e work", err)
 	}
+	service.diagnosticsState, service.readinessBlocked = "invalidated", false
 	env := service.envelope("ok", "E2E producer and affected consumers reopened; old evidence remains in history", state)
 	env.Data["invalidated_task_ids"] = ids
 	return env
@@ -754,6 +832,29 @@ func (service *e2eService) close(state *e2eState, args []string) Envelope {
 			}
 		}
 	}
+	// Only retained source/test-asset changes require cognition mutation proof.
+	// Test runs, traces and disposable outputs do not invent a source update.
+	workerDelta, err := closeout.CollectWorkerResults(service.projectRoot, "sp-e2e", service.rootRef)
+	if err != nil {
+		return service.failureWithState("blocked", "cannot bind current retained E2E source changes", state, err)
+	}
+	retained := []string{}
+	if workerDelta != nil {
+		for _, path := range workerDelta.ChangedPaths {
+			if e2eRetainedSourcePath(path, service.rootRef) {
+				retained = append(retained, path)
+			}
+		}
+	}
+	if len(retained) > 0 {
+		if err := requireMutationCognitionReceipt(filepath.Join(service.projectRoot, filepath.FromSlash(service.rootRef)), "sp-e2e"); err != nil {
+			return service.failureWithState("blocked", "retained E2E test-asset changes require a current source-bound receipt", state, err)
+		}
+		receipt, err := loadMutationCognitionReceipt(filepath.Join(service.projectRoot, filepath.FromSlash(service.rootRef)))
+		if err != nil || receipt == nil || receipt.StrongBinding == nil || !equalCloseoutPaths(receipt.StrongBinding.OwnedDelta, retained) {
+			return service.failureWithState("blocked", "E2E receipt does not cover the exact retained source delta", state, err)
+		}
+	}
 	status := "complete"
 	if state.Mode == "planning" {
 		status = "planning-complete"
@@ -783,6 +884,20 @@ func (service *e2eService) close(state *e2eState, args []string) Envelope {
 	env := service.envelope("ok", "E2E scope report recorded with truthful execution and completion claims", state)
 	env.Data["closeout_ref"], env.Data["closeout_sha256"] = ref.Ref, ref.SHA256
 	return env
+}
+
+func e2eRetainedSourcePath(path, scope string) bool {
+	if !closeoutBindingProductPath(path, scope) {
+		return false
+	}
+	// These are the existing runner/trace and disposable asset owners. A run
+	// output remains evidence and cannot invent a project-source mutation.
+	for _, prefix := range []string{"test-results/", "playwright-report/", ".specify/tmp/", ".codex-tmp/"} {
+		if strings.HasPrefix(path, prefix) {
+			return false
+		}
+	}
+	return true
 }
 
 func e2eValidatePlan(input e2ePlanInput) error {
@@ -1002,23 +1117,8 @@ func e2eAncestorAuthorConflict(state *e2eState, index int, identity string) bool
 
 func e2eInvalidate(state *e2eState, seeds map[string]bool, reason string) []string {
 	affected := map[string]bool{}
-	for id := range seeds {
+	for _, id := range e2eAffectedTasks(state, seeds) {
 		affected[id] = true
-	}
-	changed := true
-	for changed {
-		changed = false
-		for _, task := range state.Tasks {
-			if affected[task.Contract.ID] {
-				continue
-			}
-			for _, dep := range e2eDependencies(state, task.Contract) {
-				if affected[dep.TaskID] {
-					affected[task.Contract.ID], changed = true, true
-					break
-				}
-			}
-		}
 	}
 	ids := []string{}
 	for index := range state.Tasks {
@@ -1044,19 +1144,6 @@ func e2eInvalidate(state *e2eState, seeds map[string]bool, reason string) []stri
 	return ids
 }
 
-func (service *e2eService) staleTasks(state *e2eState) map[string]bool {
-	stale := map[string]bool{}
-	for index, task := range state.Tasks {
-		if task.Packet.Ref == "" {
-			continue
-		}
-		if err := service.verifyTask(state, index); err != nil {
-			stale[task.Contract.ID] = true
-		}
-	}
-	return stale
-}
-
 func (service *e2eService) verifyTask(state *e2eState, index int) error {
 	task := state.Tasks[index]
 	var packet e2ePacket
@@ -1070,7 +1157,7 @@ func (service *e2eService) verifyTask(state *e2eState, index int) error {
 		return fmt.Errorf("standard WorkerTaskPacket view no longer matches E2E bindings")
 	}
 	if err := service.verifyBindings(packet.Inputs, task.Contract.Inputs); err != nil {
-		return err
+		return e2eBindingContext(err, "input_drift", task.Contract.ID)
 	}
 	deps := map[string]e2eDependency{}
 	for _, dep := range e2eDependencies(state, task.Contract) {
@@ -1100,7 +1187,7 @@ func (service *e2eService) verifyTask(state *e2eState, index int) error {
 			return fmt.Errorf("accepted dependency output bindings changed")
 		}
 		if err := service.verifyBindings(binding.Outputs, producer.Contract.Outputs); err != nil {
-			return err
+			return e2eBindingContext(err, "output_drift", producer.Contract.ID)
 		}
 		delete(deps, binding.TaskID)
 	}
@@ -1144,11 +1231,17 @@ func (service *e2eService) verifyTask(state *e2eState, index int) error {
 	if err != nil || !e2eSameJSON(normalized, submission.WorkerResult) {
 		return fmt.Errorf("normalized WorkerTaskResult lost or changed reported validation: %v", err)
 	}
+	if binding := submission.CognitionResultBinding; binding != nil {
+		rawResult, err := json.Marshal(submission.WorkerResult)
+		if err != nil || binding["schema"] != workerdelta.BindingSchema || !workerdelta.VersionOne(binding["version"]) || binding["attempt_id"] != packet.AttemptID || binding["result_sha256"] != workerdelta.Digest(rawResult) {
+			return fmt.Errorf("E2E cognition result binding changed")
+		}
+	}
 	if err := service.verifyBindings(submission.Outputs, task.Contract.Outputs); err != nil {
-		return err
+		return e2eBindingContext(err, "output_drift", task.Contract.ID)
 	}
 	if err := service.verifyBindings(submission.Evidence, e2eEvidenceRefs(submission.Checks)); err != nil {
-		return err
+		return e2eBindingContext(err, "evidence_drift", task.Contract.ID)
 	}
 	_, allPass, err := service.validateChecks(task.Contract, submission.Checks, false)
 	if err != nil || (submission.Outcome == "pass" && (!allPass || asString(submission.WorkerResult["status"]) != "success" || len(asStringList(submission.WorkerResult["blockers"])) != 0)) {
@@ -1184,7 +1277,7 @@ func (service *e2eService) verifyTask(state *e2eState, index int) error {
 		return fmt.Errorf("independent review result changed")
 	}
 	if err := service.verifyBindings(review.Evidence, e2eEvidenceRefs(review.Checks)); err != nil {
-		return err
+		return e2eBindingContext(err, "review_evidence_drift", task.Contract.ID)
 	}
 	_, reviewPass, err := service.validateChecks(task.Contract, review.Checks, true)
 	if err != nil || (!reviewPass && task.Status != "rejected") {
@@ -1301,7 +1394,7 @@ func (service *e2eService) readState() (e2eState, error) {
 		for _, ref := range task.History {
 			var snapshot map[string]any
 			if err := service.readSnapshot(ref, &snapshot); err != nil {
-				return state, fmt.Errorf("immutable task history is unavailable: %w", err)
+				return state, fmt.Errorf("immutable task history is unavailable: %w", e2eBindingContext(err, "", task.Contract.ID))
 			}
 		}
 	}
@@ -1312,6 +1405,10 @@ func (service *e2eService) readState() (e2eState, error) {
 		var snapshot map[string]any
 		if err := service.readSnapshot(ref, &snapshot); err != nil {
 			return state, fmt.Errorf("immutable workflow history is unavailable: %w", err)
+		}
+		if diagnostics, ok := snapshot["diagnostics"].([]any); ok && len(diagnostics) > 0 {
+			service.lastDiagnosticEvent = ref
+			service.diagnosticEventCount++
 		}
 	}
 	if err := service.validateCloseoutState(state); err != nil {
@@ -1447,6 +1544,7 @@ func e2eDecode(raw []byte, output any) error {
 		return err
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(output); err != nil {
 		return err
@@ -1570,10 +1668,10 @@ func (service *e2eService) verifyBindings(bindings []e2eBinding, refs []string) 
 		}
 		raw, err := service.readFile(binding.Path)
 		if err != nil {
-			return err
+			return &e2eBindingError{Kind: "live_binding_unavailable", Path: binding.Path, ExpectedSHA256: binding.SHA256, Reason: err.Error()}
 		}
 		if fileContentSHA256(raw) != binding.SHA256 {
-			return fmt.Errorf("bound bytes changed: %s", binding.Path)
+			return &e2eBindingError{Kind: "live_binding_drift", Path: binding.Path, ExpectedSHA256: binding.SHA256, ObservedSHA256: fileContentSHA256(raw), Reason: "bound bytes changed: " + binding.Path}
 		}
 		if err := service.verifyBlob(binding.ArchiveRef, binding.SHA256); err != nil {
 			return err
@@ -1594,33 +1692,44 @@ func (service *e2eService) snapshot(value any) (e2eRef, []byte, error) {
 
 func (service *e2eService) readSnapshot(ref e2eRef, output any) error {
 	if !regexp.MustCompile(`^[0-9a-f]{64}$`).MatchString(ref.SHA256) || ref.Ref != service.rootRef+"/snapshots/"+ref.SHA256+".json" {
-		return fmt.Errorf("invalid immutable snapshot reference")
+		return &e2eBindingError{Kind: "immutable_snapshot_reference", Path: ref.Ref, ExpectedSHA256: ref.SHA256, Reason: "invalid immutable snapshot reference", Immutable: true}
 	}
-	raw, err := service.readFile(ref.Ref)
+	entry, err := service.readImmutable(ref, "snapshot", true)
 	if err != nil {
 		return err
 	}
-	if fileContentSHA256(raw) != ref.SHA256 {
-		return fmt.Errorf("immutable snapshot bytes changed: %s", ref.Ref)
+	if err := entry.decode(output); err != nil {
+		return &e2eBindingError{Kind: "immutable_snapshot_invalid", Path: ref.Ref, ExpectedSHA256: ref.SHA256, ObservedSHA256: ref.SHA256, Reason: err.Error(), Immutable: true}
 	}
-	if err := e2eDecode(raw, output); err != nil {
-		return err
+	if entry.validated {
+		for _, dependency := range entry.references {
+			if _, err := service.readImmutable(dependency.ref, dependency.kind, dependency.kind == "snapshot"); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
-	return service.verifyArchivedBindings(raw)
+	service.immutable.verifying = append(service.immutable.verifying, entry)
+	validationErr := service.verifyArchivedBindings(entry.raw)
+	service.immutable.verifying = service.immutable.verifying[:len(service.immutable.verifying)-1]
+	if validationErr != nil {
+		wrapped := e2eBindingContext(validationErr, "", "")
+		binding := wrapped.(*e2eBindingError)
+		if binding.Path == "" {
+			binding.Path, binding.ExpectedSHA256, binding.ObservedSHA256 = ref.Ref, ref.SHA256, ref.SHA256
+		}
+		return binding
+	}
+	entry.validated = true
+	return nil
 }
 
 func (service *e2eService) verifyBlob(ref, digest string) error {
 	if !regexp.MustCompile(`^[0-9a-f]{64}$`).MatchString(digest) || ref != service.rootRef+"/blobs/"+digest+".bin" {
-		return fmt.Errorf("invalid immutable raw artifact binding")
+		return &e2eBindingError{Kind: "immutable_archive_reference", Path: ref, ExpectedSHA256: digest, Reason: "invalid immutable raw artifact binding", Immutable: true}
 	}
-	raw, err := service.readFile(ref)
-	if err != nil {
-		return fmt.Errorf("immutable raw artifact unavailable: %w", err)
-	}
-	if fileContentSHA256(raw) != digest {
-		return fmt.Errorf("immutable raw artifact bytes changed: %s", ref)
-	}
-	return nil
+	_, err := service.readImmutable(e2eRef{Ref: ref, SHA256: digest}, "archive", false)
+	return err
 }
 
 func (service *e2eService) verifyArchivedBindings(raw []byte) error {
@@ -1673,7 +1782,22 @@ func (service *e2eService) verifyArchivedBindings(raw []byte) error {
 			return err
 		}
 		bindings = append(bindings, event.Evidence...)
-	case "e2e-task-contract-v1", "e2e-review-packet-v1", "e2e-acceptance-v1", "e2e-closeout-v1":
+	case "e2e-rejected-worker-result-v1":
+		event, err := workerdelta.Decode(raw)
+		if err != nil {
+			return err
+		}
+		text, ok := event["worker_result_json"].(string)
+		if !ok || event["status"] != "rejected" || event["worker_result_sha256"] != workerdelta.Digest([]byte(text)) {
+			return fmt.Errorf("rejected E2E worker accounting changed")
+		}
+		if text, present := event["submission_input_json"]; present {
+			input, ok := text.(string)
+			if !ok || event["submission_input_sha256"] != workerdelta.Digest([]byte(input)) {
+				return fmt.Errorf("rejected E2E exact submission input changed")
+			}
+		}
+	case "e2e-task-contract-v1", "e2e-review-packet-v1", "e2e-acceptance-v1", "e2e-closeout-v1", "e2e-invalidation-v1":
 		// These schemas own no raw artifact bindings.
 	default:
 		return fmt.Errorf("unknown immutable E2E snapshot schema %q", header.SchemaVersion)
@@ -1744,6 +1868,7 @@ func (service *e2eService) persist(state *e2eState, kind string, snapshots map[s
 }
 
 func (service *e2eService) envelope(status, summary string, state *e2eState) Envelope {
+	service.viewState = state
 	env := NewEnvelope(status, summary)
 	tasks := []any{}
 	for _, task := range state.Tasks {
@@ -1786,22 +1911,16 @@ func (service *e2eService) envelope(status, summary string, state *e2eState) Env
 			env.NextArgv = service.argv(state, "reopen", "--task-id", task.Contract.ID, "--leader-id", state.LeaderID, "--reason", "<causal-repair-reason>", "--evidence-ref", "<reproduction-evidence-path>")
 			return env
 		case "pending":
-			ready := true
-			for _, dep := range e2eDependencies(state, task.Contract) {
-				index, _ := e2eTaskIndex(state, dep.TaskID)
-				producer := state.Tasks[index]
-				if producer.Status != "accepted" || (dep.Require == "passed" && producer.Outcome != "pass") {
-					ready = false
-				}
-			}
-			if ready {
+			index, _ := e2eTaskIndex(state, task.Contract.ID)
+			if len(service.startReasons(state, index, false, nil)) == 0 {
 				env.NextArgv = service.argv(state, "task-start", "--task-id", task.Contract.ID, "--worker-id", "<native-worker-id>")
 				return env
 			}
 		}
 	}
 	for _, task := range state.Tasks {
-		if task.Status == "pending" && task.Contract.Stage >= 6 {
+		index, _ := e2eTaskIndex(state, task.Contract.ID)
+		if task.Status == "pending" && task.Contract.Stage >= 6 && len(service.startReasons(state, index, true, nil)) == 0 {
 			env.NextArgv = service.argv(state, "task-start", "--task-id", task.Contract.ID, "--worker-id", "<independent-audit-worker-id>", "--diagnostic")
 			return env
 		}
@@ -1828,6 +1947,9 @@ func e2eFailure(status, summary string, err error) Envelope {
 
 func (service *e2eService) argv(state *e2eState, action string, extra ...string) []string {
 	args := []string{"specify-runtime", "e2e", action, "--run-id", state.RunID, "--project-root", service.projectRoot, "--expected-revision", strconv.Itoa(state.Revision), "--format", "json"}
+	if service.view.Mode == "compact" {
+		args = append(args, "--view", "compact", "--limit", strconv.Itoa(service.view.Limit))
+	}
 	return append(args, extra...)
 }
 
@@ -1901,7 +2023,8 @@ func e2eStandardWorkerPacket(runID, taskID string, contract e2eTaskSpec, readPat
 		handoff = []string{"Return every independent review row inline for e2e review-submit", "Bind review_packet_sha256 and submission_sha256 from the enclosing review request; distinguish inspected from replayed checks", "Reject incomplete or contradictory results and name every required repair; independent verification is not leader acceptance"}
 	}
 	return map[string]any{
-		"feature_id": "", "story_id": "", "task_id": taskID, "objective": objective, "packet_version": 2, "agent_role": role,
+		"cognition_delta_contract": workerdelta.Contract(taskID),
+		"feature_id":               "", "story_id": "", "task_id": taskID, "objective": objective, "packet_version": 2, "agent_role": role,
 		"intent": map[string]any{"outcome": objective, "constraints": rules, "success_signals": criteria},
 		"scope":  map[string]any{"read_scope": reads, "write_scope": writePaths}, "interfaces": map[string]any{"consumes": reads, "produces": writePaths},
 		"context_bundle": context, "required_references": references, "hard_rules": rules, "forbidden_drift": []string{"Do not remove requested target/operation IDs or acceptance criteria", "Do not reuse stale or rejected acceptance receipts", "Do not weaken assertions, modify product behavior, or write runtime-owned files"},

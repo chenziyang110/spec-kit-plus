@@ -19,7 +19,7 @@ import sys
 import zipfile
 from typing import BinaryIO
 
-HELPERS = ("e2e_scenarios.py", "e2e_coverage.py", "e2e_runner.py", "e2e_pytest_reporter.py")
+HELPERS = ("e2e_scenarios.py", "e2e_coverage.py", "e2e_runner.py", "e2e_pytest_reporter.py", "e2e_assets.py")
 ASSET_TREES = {
     "tools/specify-runtime": "specify_cli/core_pack/tools/specify-runtime",
     "templates/command-partials": "specify_cli/core_pack/command-partials",
@@ -35,10 +35,14 @@ ASSET_FILES = {
         "specify_cli/core_pack/tools/specify-runtime/e2e_workflow.go",
     "tools/specify-runtime/e2e_contract.go":
         "specify_cli/core_pack/tools/specify-runtime/e2e_contract.go",
+    "tools/specify-runtime/e2e_views.go":
+        "specify_cli/core_pack/tools/specify-runtime/e2e_views.go",
     "templates/commands/e2e.md": "specify_cli/core_pack/commands/e2e.md",
     "templates/artifacts/project-cognition-workflow-registry.json":
         "specify_cli/core_pack/templates/artifacts/project-cognition-workflow-registry.json",
 }
+VCS_INTERNALS = frozenset({".git", ".hg", ".svn", ".bzr"})
+NATIVE_LOCAL_ROOTS = frozenset({".tmp", ".gocache", "bin"})
 
 
 class WheelError(ValueError):
@@ -54,6 +58,23 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def excluded_source(path: PurePosixPath, *, directory: bool = False) -> bool:
+    """Match wheel exclusions without discarding arbitrary hidden test assets.
+
+    Native scratch/build roots are only direct children of the Go module.
+    Nested testdata/.tmp-* and dotfiles such as .gitignore remain source assets.
+    Keep the explicit source-path rules in pyproject.toml synchronized.
+    """
+    parts = path.parts
+    if VCS_INTERNALS.intersection(parts) or "__pycache__" in parts or path.suffix == ".pyc":
+        return True
+    if parts[:2] == ("tools", "specify-runtime") and len(parts) == 3 and parts[2].endswith("-cover.out"):
+        return True
+    if parts[:2] == ("tools", "specify-runtime") and (len(parts) > 3 or directory and len(parts) == 3):
+        return parts[2] in NATIVE_LOCAL_ROOTS or parts[2].startswith(".tmp-")
+    return False
+
+
 def source_assets(root: Path) -> dict[str, bytes]:
     """Enumerate the real owners; missing source trees must not reduce coverage."""
     root = root.resolve()
@@ -64,8 +85,16 @@ def source_assets(root: Path) -> dict[str, bytes]:
         directory = root / source
         require(directory.is_dir(), f"missing source tree: {source}")
         require(directory.resolve().is_relative_to(root), f"escaping source tree: {source}")
-        members = sorted(path for path in directory.rglob("*") if path.is_file()
-                         and "__pycache__" not in path.parts and path.suffix != ".pyc")
+        members = []
+        # Prune known temporary roots before traversal. Their contents may be
+        # changing, enormous, or contain linked worktrees unrelated to source.
+        for parent, directories, files in os.walk(directory):
+            parent = Path(parent)
+            directories[:] = sorted(name for name in directories if not excluded_source(
+                PurePosixPath((parent / name).relative_to(root).as_posix()), directory=True))
+            members.extend(parent / name for name in files if not excluded_source(
+                PurePosixPath((parent / name).relative_to(root).as_posix())))
+        members.sort()
         require(bool(members), f"empty source tree: {source}")
         for path in members:
             mapping[path.relative_to(root).as_posix()] = target + "/" + path.relative_to(directory).as_posix()
@@ -148,6 +177,9 @@ def verify_wheel(wheel: Path, root: Path) -> dict:
                         and not path.is_absolute() and ".." not in path.parts
                         and "\\" not in name and ":" not in name and path.as_posix() == clean,
                         f"noncanonical ZIP member: {name}")
+                source_name = clean.removeprefix("specify_cli/core_pack/")
+                require(not excluded_source(PurePosixPath(source_name), directory=info.is_dir()),
+                        f"excluded local/VCS asset present in wheel: {name}")
             record = read_record(archive)
             for name, wanted in sorted(expected.items()):
                 require(name in names, f"missing wheel asset: {name}")

@@ -62,7 +62,16 @@ def _entrypoints(installed) -> tuple[list[Path], list[Path]]:
             [p for p in templates if p.stem in integration.ADVANCED_CLASSIC_COMPANION_COMMANDS]
             if profile == "advanced" else templates
         )
-        classic = [root / f"sp-{p.stem.replace('.', '-')}" / "SKILL.md" for p in classic_templates]
+        expected_classic = {
+            root / ("sp-teams" if p.stem == "team" else f"sp-{p.stem.replace('.', '-')}") / "SKILL.md"
+            for p in classic_templates
+        }
+        # Integration-owned commands (for example Claude implement-teams) are
+        # also part of the installed denominator, not accidental extra files.
+        classic = sorted({p for p in created if p.name == "SKILL.md" and p.parent.name.startswith("sp-")})
+        assert expected_classic <= set(classic)
+        if profile == "advanced":
+            assert set(classic) == expected_classic
         advanced_templates = integration.list_advanced_skill_templates() if profile == "advanced" else []
         advanced = [root / p.name / "SKILL.md" for p in advanced_templates]
         assert set(root.glob("sp-*/SKILL.md")) == set(classic)

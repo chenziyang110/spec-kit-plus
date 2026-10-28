@@ -22,6 +22,14 @@ Preserved Contract: implementation is task-driven, uses validated packets for de
 9. If `task-next` or `resume-audit` returns `reason_code: task-reopen-required`, execute the runtime-provided `implement task-reopen` action with the observed task/workflow revisions plus explicit reason and evidence. Preserve its immutable receipt, do not substitute stage-level `workflow reopen`, and if a workflow blocker remains active, clear it only through the returned `workflow.resolve` action.
 10. Continue automatically until complete or genuinely blocked.
 
+After accepted source-changing joins and before the existing final convergence
+attempt, first call the planner in the shared inline closeout contract for the
+owned changed paths, then use its inputs to begin the native work/source binding.
+Seal that exact binding with fresh verification observations. This uses
+the existing logical gate; old worker checks do not prove a newly bound final
+source version. The current binding must survive shared apply and terminal
+Implement closeout.
+
 ## Minimum-Sufficient Packet And Result
 
 Delegated packets contain objective, authoritative refs, bounded read/write scope, forbidden drift, validation, done condition, task-relevant `MP-*`/`CA-###`, consumer evidence, and recovery. Do not copy global policies or unrelated obligations.
@@ -59,6 +67,9 @@ Every terminal blocker records code/cause, owner, exact next action, evidence re
 
 Before completion:
 
+Require `cognition.closeout.recovery.v1` through the shared closeout capability
+check before the terminal tail; an older runtime follows its upgrade/recovery action.
+
 - reconcile task graph, execution state, lifecycle records, worker results, and actual changed paths;
 - verify every acceptance criterion and open `MP-*`/`CA-###` obligation;
 - reconcile the validation ledger shared across Implement and Review,
@@ -81,8 +92,8 @@ Before completion:
   persist typed evidence with `evidence_scope: integrated`. Do not run the full
   viewport/state capture loop per Txx. `pending-human-review` blocks verified
   closeout;
-- run `{{specify-subcmd:specify-runtime implement closeout --feature-dir "$FEATURE_DIR" --format json}}` when available;
-- update project cognition once from final changed paths and verification evidence when project truth changed.
+- update project cognition once from final changed paths and verification evidence through the shared planner-first `apply_argv` before terminal closeout when project truth changed. Shared apply writes the allowed receipt; do not stamp a second receipt. Inspect/repair/replay an existing durable intent rather than downgrade it to dirty fallback;
+- only after the cognition receipt allows close, run `{{specify-subcmd:specify-runtime implement closeout --feature-dir "$FEATURE_DIR" --format json}}`.
 
 `specify-runtime implement closeout` exclusively writes `implementation-handoff.json` and `implementation-summary.md` for mandatory system Review. Do not construct, edit, submit, or stage either file yourself. The runtime derives them from accepted lifecycle evidence and live contracts, validates their denominators and frozen Human Acceptance Universe, and keeps agent-only lifecycle details by reference.
 

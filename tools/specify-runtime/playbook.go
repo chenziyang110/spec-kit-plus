@@ -15,12 +15,13 @@ import (
 func runPlaybook(args []string, stdout io.Writer) int {
 	if len(args) == 0 || containsHelpFlag(args) {
 		env := NewEnvelope("ok", "playbook commands")
-		env.Data = map[string]any{"commands": []string{"find", "show", "validate", "update"}, "usage": map[string]string{
-			"find":     "playbook find [--query TEXT] [--operation OPERATION] [--target TARGET] [--context-json JSON] [--limit N] [--cursor N] [--format json]",
-			"show":     "playbook show --id ID [--section summary|steps|checks|evidence|all] [--revision N | --proposal-digest SHA256] [--format json]",
+		env.Data = map[string]any{"commands": []string{"find", "show", "validate", "update", "metrics"}, "usage": map[string]string{
+			"find":     "playbook find [--query TEXT] [--operation OPERATION] [--target TARGET] [--context-json JSON] [--parameters-json JSON] [--rank relevance|observed] [--limit N] [--cursor N] [--format json]",
+			"show":     "playbook show --id ID [--section summary|steps|checks|evidence|recovery|all] [--revision N | --proposal-digest SHA256] [--format json]",
+			"metrics":  "playbook metrics --id ID [--context-json JSON] [--parameters-json JSON] [--format json]",
 			"validate": "playbook validate (--id ID | --input-json DEFINITION) [--context-json JSON] [--format json]",
 			"update":   "playbook update --input-json UPDATE [--format json]",
-		}, "schemas": []string{"playbook-definition-input", "playbook-find-input", "playbook-show-input", "playbook-validate-input", "playbook-update-input"}, "execution_boundary": "native_agent_tools_only; read commands do not execute or establish a new success"}
+		}, "schemas": []string{"playbook-definition-input", "playbook-find-input", "playbook-show-input", "playbook-validate-input", "playbook-update-input", "playbook-metrics-input"}, "execution_boundary": "native_agent_tools_only; read commands do not execute or establish a new success"}
 		return writeEnvelope(stdout, env)
 	}
 	root, err := filepath.Abs(optionValue(args, "--project-root", "."))
@@ -32,7 +33,7 @@ func runPlaybook(args []string, stdout io.Writer) int {
 	var data map[string]any
 	switch args[0] {
 	case "find":
-		err = validatePlaybookOptions(args[1:], "--query", "--operation", "--target", "--context-json", "--limit", "--cursor")
+		err = validatePlaybookOptions(args[1:], "--query", "--operation", "--target", "--context-json", "--parameters-json", "--rank", "--limit", "--cursor")
 		if err == nil {
 			data, err = findPlaybooks(root, args[1:])
 		}
@@ -40,6 +41,11 @@ func runPlaybook(args []string, stdout io.Writer) int {
 		err = validatePlaybookOptions(args[1:], "--id", "--section", "--revision", "--proposal-digest")
 		if err == nil {
 			data, err = showPlaybook(root, optionValue(args, "--id", ""), optionValue(args, "--section", "summary"), optionValue(args, "--revision", ""), optionValue(args, "--proposal-digest", ""))
+		}
+	case "metrics":
+		err = validatePlaybookOptions(args[1:], "--id", "--context-json", "--parameters-json")
+		if err == nil {
+			data, err = playbookMetrics(root, args[1:])
 		}
 	case "update":
 		err = validatePlaybookOptions(args[1:], "--input-json")
@@ -90,11 +96,24 @@ func validatePlaybookOptions(args []string, allowed ...string) error {
 }
 
 func findPlaybooks(root string, args []string) (map[string]any, error) {
+	rank := optionValue(args, "--rank", "relevance")
+	if rank != "relevance" && rank != "observed" {
+		return nil, fmt.Errorf("playbook_rank_invalid")
+	}
+	parameters, err := playbookMetricsParameters(optionValue(args, "--parameters-json", ""))
+	if err != nil {
+		return nil, err
+	}
 	context, err := playbookReadContext(optionValue(args, "--context-json", ""))
 	if err != nil {
 		return nil, err
 	}
 	policy, policyWarnings, _ := (learningService{projectRoot: root}).loadLearningPolicy(false)
+	for _, value := range parameters {
+		if redactLearningTextWithPolicy(value, policy).text != value {
+			return nil, fmt.Errorf("playbook_sensitive_parameters_rejected")
+		}
+	}
 	query := strings.TrimSpace(redactLearningTextWithPolicy(optionValue(args, "--query", ""), policy).text)
 	operation := redactLearningTextWithPolicy(optionValue(args, "--operation", ""), policy).text
 	target := redactLearningTextWithPolicy(optionValue(args, "--target", ""), policy).text
@@ -129,6 +148,7 @@ func findPlaybooks(root string, args []string) (map[string]any, error) {
 		document PlaybookDocument
 		score    int
 		source   string
+		observed playbookObservedProfile
 	}
 	matches := []ranked{}
 	excludedContext := 0
@@ -155,7 +175,7 @@ func findPlaybooks(root string, args []string) (map[string]any, error) {
 		if source == "matched_prior_validation" {
 			score++
 		}
-		matches = append(matches, ranked{document, score, source})
+		matches = append(matches, ranked{document: document, score: score, source: source})
 	}
 	sort.SliceStable(matches, func(i, j int) bool {
 		if matches[i].score != matches[j].score {
@@ -163,6 +183,36 @@ func findPlaybooks(root string, args []string) (map[string]any, error) {
 		}
 		return matches[i].document.ID < matches[j].document.ID
 	})
+	metricsScan := map[string]any{"sessions_read": 0, "strategy": "not_requested"}
+	if rank == "observed" && len(matches) > 0 {
+		sessions, metricWarnings, metricErr := readDoMetricsSessions(root)
+		if metricErr != nil {
+			return nil, metricErr
+		}
+		warnings = uniqueSortedTrimmed(append(warnings, metricWarnings...))
+		metricsScan = map[string]any{"sessions_read": len(sessions), "excluded_session_entries": len(metricWarnings), "strategy": "read_only_session_scan", "constant_time": false}
+		methodSessions := groupDoMetricsSessions(sessions)
+		positions := map[string][]int{}
+		for i := range matches {
+			matches[i].observed = playbookObservationProfile(root, matches[i].document, matches[i].source, context, parameters, methodSessions[matches[i].document.ID], len(metricWarnings) == 0)
+			if matches[i].observed.ComparisonKey != "" {
+				key := fmt.Sprintf("%d:%s", matches[i].score, matches[i].observed.ComparisonKey)
+				positions[key] = append(positions[key], i)
+			}
+		}
+		for _, indices := range positions {
+			candidates := make([]ranked, len(indices))
+			profiles := make([]playbookObservedProfile, len(indices))
+			for i, index := range indices {
+				candidates[i] = matches[index]
+				profiles[i] = candidates[i].observed
+			}
+			order := playbookObservedOrder(profiles)
+			for i, index := range indices {
+				matches[index] = candidates[order[i]]
+			}
+		}
+	}
 	total := len(matches)
 	end := cursor + limit
 	if end > total {
@@ -177,6 +227,9 @@ func findPlaybooks(root string, args []string) (map[string]any, error) {
 				card["show_argv"] = playbookShowArgv(match.document.ID, "summary", 0, match.document.ContentDigest)
 			}
 			card["match_reason"] = "goal_alias_or_canonical_operation"
+			if rank == "observed" {
+				card["observed_ranking"] = match.observed.card()
+			}
 			items = append(items, card)
 		}
 	}
@@ -194,10 +247,17 @@ func findPlaybooks(root string, args []string) (map[string]any, error) {
 			encoded, _ := json.Marshal(context)
 			argv = append(argv, "--context-json", string(encoded))
 		}
+		if optionValue(args, "--parameters-json", "") != "" {
+			encoded, _ := json.Marshal(parameters)
+			argv = append(argv, "--parameters-json", string(encoded))
+		}
+		if rank != "relevance" {
+			argv = append(argv, "--rank", rank)
+		}
 		argv = append(argv, "--cursor", strconv.Itoa(end), "--limit", strconv.Itoa(limit), "--format", "json")
 		nextArgv = argv
 	}
-	return map[string]any{"schema_version": playbookSchemaVersion, "read_only": true, "items": items, "pagination": map[string]any{"cursor": cursor, "limit": limit, "returned": len(items), "total": total, "next_cursor": nextCursor, "next_argv": nextArgv}, "excluded_by_applicability": excludedContext, "warnings": warnings, "live_verification_required": true, "claim_ready": false}, nil
+	return map[string]any{"schema_version": playbookSchemaVersion, "read_only": true, "items": items, "pagination": map[string]any{"cursor": cursor, "limit": limit, "returned": len(items), "total": total, "next_cursor": nextCursor, "next_argv": nextArgv}, "excluded_by_applicability": excludedContext, "warnings": warnings, "rank": rank, "ranking_policy": "lexical relevance first; comparable observed reliability then tool cost within equal-score groups; insufficient timing samples keep their reliability-sorted positions", "metrics_scan": metricsScan, "live_verification_required": true, "claim_ready": false}, nil
 }
 
 func playbookMatchScore(definition PlaybookDefinition, query string) int {
@@ -241,7 +301,7 @@ func playbookShowArgv(id, section string, revision int, proposalDigest string) [
 }
 
 func showPlaybook(root, id, section, rawRevision, proposalDigest string) (map[string]any, error) {
-	if section != "summary" && section != "steps" && section != "checks" && section != "evidence" && section != "all" {
+	if section != "summary" && section != "steps" && section != "checks" && section != "evidence" && section != "recovery" && section != "all" {
 		return nil, fmt.Errorf("playbook_section_invalid")
 	}
 	if rawRevision != "" && proposalDigest != "" {
@@ -291,7 +351,7 @@ func showPlaybook(root, id, section, rawRevision, proposalDigest string) (map[st
 		data["applicability"] = document.Definition.Applicability
 		data["source_files"] = document.Definition.SourceFiles
 		expand := map[string][]string{}
-		for _, next := range []string{"steps", "checks", "evidence", "all"} {
+		for _, next := range []string{"steps", "checks", "evidence", "recovery", "all"} {
 			expand[next] = playbookShowArgv(id, next, revision, proposalDigest)
 		}
 		data["expand_argv"] = expand
@@ -316,6 +376,16 @@ func showPlaybook(root, id, section, rawRevision, proposalDigest string) (map[st
 			data["verification"] = document.Verification
 			data["source_fingerprint"] = document.SourceFingerprint
 			data["usage"] = playbookUsageSummary(root, document)
+		}
+	case "recovery":
+		if proposal != nil {
+			data["recovery"] = map[string]any{"items": []any{}, "status": "unverified_proposal", "prevention_verified": false}
+		} else {
+			recovery, err := playbookRecoveryHints(root, document)
+			if err != nil {
+				return nil, err
+			}
+			data["recovery"] = recovery
 		}
 	case "all":
 		data["definition"] = document.Definition

@@ -191,16 +191,17 @@ func applyFileTransactionWithVerification(projectRoot, kind string, updates []fi
 		normalizedPreconditions[index].path = secured
 	}
 	for _, precondition := range normalizedPreconditions {
-		current, readErr := os.ReadFile(precondition.path)
 		if precondition.mustNotExist {
-			if readErr == nil {
+			// Absence concerns the directory entry, not its readable contents.
+			// Never open an existing pipe or load a large file for this check.
+			if _, err := os.Lstat(precondition.path); err == nil {
 				return receipt, fmt.Errorf("file transaction precondition failed for %s: expected the path to be absent", precondition.rel)
-			}
-			if !os.IsNotExist(readErr) {
-				return receipt, fmt.Errorf("file transaction precondition failed for %s: %w", precondition.rel, readErr)
+			} else if !os.IsNotExist(err) {
+				return receipt, fmt.Errorf("file transaction precondition failed for %s: %w", precondition.rel, err)
 			}
 			continue
 		}
+		current, readErr := os.ReadFile(precondition.path)
 		if readErr != nil {
 			return receipt, fmt.Errorf("file transaction precondition failed for %s: expected an existing file: %w", precondition.rel, readErr)
 		}
@@ -282,8 +283,8 @@ func applyFileTransactionWithVerification(projectRoot, kind string, updates []fi
 		cleanup()
 		return receipt, err
 	}
-	if err := replaceFile(txRoot, publishedRoot); err != nil {
-		cleanup()
+	if err := publishPreparedTransactionDirectory(txRoot, publishedRoot, journal); err != nil {
+		cleanupPreparedDirectoryPublicationFailure(txRoot)
 		return receipt, fmt.Errorf("publish prepared file transaction: %w", err)
 	}
 	txRoot = publishedRoot

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from specify_cli.execution import worker_task_packet_from_json
@@ -68,7 +69,13 @@ HUMAN_FALLBACK_GUIDANCE = {
 }
 
 
-def project_cognition_freshness_result(project_root: Path, *, command_name: str) -> HookResult:
+def project_cognition_freshness_result(
+    project_root: Path, *, command_name: str, task_packet: str | None = None,
+    availability_binding: dict[str, object] | str | None = None,
+) -> HookResult:
+    if task_packet is not None:
+        return project_cognition_scope_result(project_root, task_packet, availability_binding)
+
     normalized = command_name.strip().lower()
     try:
         freshness = run_specify_runtime(["cognition", "check", "--format", "json"], cwd=project_root)
@@ -156,6 +163,46 @@ def project_cognition_freshness_result(project_root: Path, *, command_name: str)
         warnings=reasons or [NON_STALE_FALLBACK_GUIDANCE.format(state=state or "unknown")],
         data={"freshness": freshness},
     )
+
+def project_cognition_scope_result(
+    project_root: Path, task_packet: str,
+    availability_binding: dict[str, object] | str | None = None,
+) -> HookResult:
+    """Consume the public versioned decision without granting workflow authority."""
+    event = "project_cognition.refresh.validate"
+    try:
+        if not isinstance(task_packet, str) or not task_packet or task_packet != task_packet.strip():
+            raise SpecifyRuntimeError("task_packet must name the exact current canonical packet")
+        capability = run_specify_runtime(
+            ["api", "ensure", "--capabilities", "cognition.scope-availability.v2", "--format", "json"],
+            cwd=project_root,
+        )
+        if capability.get("status") != "ok":
+            raise SpecifyRuntimeError("cognition.scope-availability.v2 is unavailable")
+        args = ["cognition", "check", "--task-packet", task_packet]
+        if availability_binding is not None:
+            if not isinstance(availability_binding, (dict, str)):
+                raise SpecifyRuntimeError("availability_binding must be a native binding object or JSON string")
+            args.extend(["--availability-json", availability_binding if isinstance(availability_binding, str)
+                         else json.dumps(availability_binding, separators=(",", ":"))])
+        args.extend(["--format", "json"])
+        availability = run_specify_runtime(args, cwd=project_root)
+    except SpecifyRuntimeError as exc:
+        return HookResult(event=event, status="blocked", severity="critical", errors=[str(exc)],
+                          data={"scope_availability": {"scope_ready": False, "availability": "unavailable"},
+                                "graph_consumption": "live-read-fallback", "advisory_only": True})
+    ready = (availability.get("contract_version") == 2
+             and availability.get("scope_ready") is True
+             and availability.get("availability") == "ready"
+             and availability.get("status") == "ok")
+    data = {"scope_availability": availability, "advisory_only": True,
+            "graph_consumption": "scoped-navigation" if ready else "live-read-fallback"}
+    if ready:
+        return HookResult(event=event, status="ok", severity="info", data=data)
+    reasons = [str(reason) for reason in availability.get("reasons", []) if str(reason).strip()]
+    return HookResult(event=event, status="blocked", severity="critical",
+                      errors=reasons or ["Scoped cognition is unavailable; use bounded current live reads."], data=data)
+
 
 def _has_scan_build_allowed_reason(reasons: list[str]) -> bool:
     compact_reason_text = " ".join(str(reason or "") for reason in reasons).lower()

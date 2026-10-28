@@ -68,7 +68,7 @@ Goal: Read the current stage artifact, project cognition artifact, or explicitly
    - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
    - If repository inspection, artifact reading beyond already-provided context, or evidence cross-checking is needed, dispatch a bounded subagent lane before final explanation.
    - If the artifact is fully provided in the current prompt and no repository inspection is needed, the leader may render the explanation directly because no substantive repository task is being executed.
-   - If required subagent dispatch is unavailable, record `subagent-blocked` and stop with the missing capability or packet requirement instead of treating coordinator-authored substantive work as the ordinary path.
+   - If required subagent dispatch is unavailable, repair its packet or invocation, discover actual capabilities, join capacity-limited work, and resume or redispatch a safe serial lane in this invocation. Keep the explanation's required evidence join pending. Exit `subagent-blocked` with the missing capability or packet requirement and exact resume action only after no safe authorized recovery remains; never substitute coordinator-authored substantive inspection for the mandatory lane.
    - If collaboration is justified, keep `explain` lanes limited to:
      - primary artifact reading
      - supporting artifact cross-check

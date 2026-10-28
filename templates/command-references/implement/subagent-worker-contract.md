@@ -76,6 +76,23 @@ the packet names a consumer surface. Only runtime real-entrypoint proof is
 deferred to the Leader-owned attempt; do not defer a static "created but not
 wired" check merely because `mode: feature_epochs` is active.
 
+Return a versioned `cognition_delta` (`schema: "spec-kit-cognition-delta-v1"`,
+`version: 1`) under the existing result, honoring the compiler's
+`cognition_delta_contract`. Keep reported identity, all retained changed paths,
+both rename endpoints, behavior, owner/consumer/interfaces, generated chain,
+state, evidence/verification, invalidated claims, unknowns, confidence, and
+recovery facets as lossless JSON candidates. A failed or rejected attempt does
+not erase retained edits. Runtime-owned `submission_history` and
+`cognition_result_binding` preserve exact submissions and acceptance; workers
+must not supply them. At the join, the native leader planner reads these stored
+results, keeps unaccepted semantics as candidates, and exposes overlapping
+paths or shared claims for explicit resolution. Do not replace this with a
+chat summary, last-writer merge, or a second result ledger.
+Before compiling or dispatching a source-changing packet, require
+`{{specify-subcmd:specify-runtime api ensure --capabilities cognition.worker-delta.v1 --format json}}`.
+If missing, repair or upgrade the runtime before submission; do not let an old
+normalizer discard the handoff and attempt to reconstruct it at closeout.
+
 ### Autonomous Blocker Recovery
 
 If technical blockers arise (build errors, missing toolchain components, environment mismatches), you **MUST** attempt autonomous escalation to a specialist subagent **BEFORE** asking the user for intervention.

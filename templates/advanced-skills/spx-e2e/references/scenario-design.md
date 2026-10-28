@@ -100,6 +100,85 @@ observations. Condition and timing coverage credit cleanly passed scenarios
 only; global run completion still rejects any failed/skipped/blocked/not-run/
 flaky scenario, even when another scenario covers an overlapping obligation.
 
+## Compound risk and strength review
+
+Before Stage 2 acceptance, preserve a source-backed risk intent for each discovered
+high-risk input × boundary/state/timing interaction. Name the interaction cause,
+condition variants or event/checkpoint, ordered stimulus and independent outcome
+oracle. Expected behavior comes from requirements/rules; unknown expectations or
+unobservable checkpoints remain pending with reasons. Use multibyte and
+supplementary-plane input when length units matter: ASCII cannot distinguish
+bytes, UTF-16 units and code points. Side effects require independent readback.
+
+Read `python .specify/scripts/shared/e2e_assets.py schema strength`, then use
+`strength-prepare <risk-intent> --book <v2-book> --root .` and
+`strength-audit <frozen-strength> --root .`. This stdout-only helper creates no
+runtime state or pass. Register its frozen ordinary asset as a Stage 2 output
+and downstream input through the existing E2E owner; separately validate risk
+discovery and oracle semantics against the original scope. Ready declarations
+are not executed strength. When safely feasible, run a disposable known-wrong
+control and prove the oracle detects it; preserve failure and all not-run rows.
+Do not mutate product source for a control. Later `strength-audit --trace <trace>`
+uses the existing scenario auditor and retains failed, flaky and missing evidence.
+
+## Frozen independent books and impact
+
+Before execution, partition against the accepted original parent request/sources,
+all operation and cross-feature obligations, dependencies, gaps and justified
+exclusions. Map the entire denominator into independent v2 books and actual
+shared journey books; each binds strength assets, fixture definitions and real
+target inputs. Read `python .specify/scripts/shared/e2e_assets.py schema bundle`,
+then `bundle-prepare <intent> --parent <parent> --root .`. Save its stdout as an
+ordinary Stage 2 output, independently accept the frozen bundle, and bind its
+exact file digest plus selected books/fixtures/targets in Stage 3/4 packets.
+Never partition after failure to reduce an execution denominator.
+
+Before each book execution, author the schema's ordinary `execution_binding`
+with `schema_version`, `bundle_file_sha256`, `book_binding_sha256`, `book_id`,
+`run_id` and `target`. Stage 3/4 binds its exact bytes. Original trace evidence
+contains exactly one log with ID `bundle-execution-binding`, path and SHA-256;
+the optional runs index's `execution_binding` references that same file.
+Consistency is not proof of creation time, real execution or agent identity;
+the independent validator checks actual records and semantic adequacy.
+
+`bundle-impact <bundle> --expected-bundle-sha256 <accepted-Stage-2-file-digest>
+--root . [--runs <index>]` detects parent/intent refreeze and source/book/strength/
+fixture/target changes, including actual dependent shared journeys. Preserve
+original evidence for an unaffected book only when every binding and original
+auditor remains valid. Relabelling a runs index or receipt cannot rebind an old
+trace. A changed whole-book hash needs fresh whole-book evidence. Design and
+preparation reuse never grants a pass to a new run; retain original failed,
+flaky, not-run and excluded rows throughout.
+
+## Scenario/native evidence crosswalk
+
+For hybrid execution, read `e2e_assets.py schema crosswalk`. Before execution,
+declare native lanes (root, manifest/bindings digests, runner, target, book IDs)
+whose native sources are already frozen in associated book sources/fixtures/
+target inputs. Map exact scenario/step/oracle IDs and scenario/condition/timing
+obligations to native case/journey/parameter IDs, with rationale and requirement
+links supporting every many-to-many edge. Retain all unmapped rows as gaps.
+Use `crosswalk-prepare <intent> --bundle <bundle> --expected-bundle-sha256
+<accepted-bundle-file-digest> --root .`; independently accept the ordinary
+Stage 2 output and freeze its raw file digest in Stage 3/4 packets.
+
+The crosswalk `execution_binding` contains exactly `schema_version`,
+`crosswalk_file_sha256`, `book_id`, `run_id`, `target`. Preserve its original
+file as the trace's unique log evidence `crosswalk-execution-binding`, alongside
+the separate `bundle-execution-binding` and exact native report/results/execution
+evidence. A declared digest does not prove execution time or process identity.
+
+Run `crosswalk-audit <crosswalk> --expected-crosswalk-sha256
+<accepted-crosswalk-file-digest> --expected-bundle-sha256
+<accepted-bundle-file-digest> --scenario-runs <bundle-runs-index>
+--native-runs <native-runs-index> --root .`. It reuses the original scenario and
+coverage auditors and native adapter report interpretation/freshness checks;
+retain their reports and all attempts. Missing/unknown/conflicting/duplicate
+credit and native failed/skipped/retry/flaky/empty selections remain incomplete
+even with a passing visual trace. `crosswalk_accounting_complete` proves
+accounting consistency, not product success or a new-run pass. Go remains the
+sole workflow state/acceptance owner.
+
 ## Visual execution protocol
 
 Observe the actual screen and target before an action. Execute bounded actions

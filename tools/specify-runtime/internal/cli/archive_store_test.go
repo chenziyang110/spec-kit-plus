@@ -6,10 +6,60 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+
+	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 )
+
+func TestArchiveIncompatibleStoreRefusesRedirectedHistory(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, ".specify", "project-cognition")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	history := filepath.Join(dir, "history")
+	var err error
+	if runtime.GOOS == "windows" {
+		output, linkErr := exec.Command("cmd.exe", "/c", "mklink", "/J", history, outside).CombinedOutput()
+		if linkErr != nil {
+			t.Fatalf("create isolated history junction: %v %s", linkErr, output)
+		}
+	} else if err = os.Symlink(outside, history); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	database, status := []byte("legacy database"), []byte(`{"freshness":"fresh"}`)
+	if err := os.WriteFile(paths.DatabasePath, database, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.StatusPath, status, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"--inspect", "--format", "json"}, {"--expected-sha256", fmt.Sprintf("%x", sha256.Sum256(database)), "--format", "json"}} {
+		var stdout, stderr bytes.Buffer
+		if code := archiveIncompatibleStoreCommand(args, &stdout, &stderr, paths); code == 0 || !strings.Contains(stdout.String(), "non-symlink") {
+			t.Fatalf("redirected archive code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+		}
+		for path, want := range map[string][]byte{paths.DatabasePath: database, paths.StatusPath: status} {
+			got, err := os.ReadFile(path)
+			if err != nil || !bytes.Equal(got, want) {
+				t.Fatalf("refusal changed original %s: %v", path, err)
+			}
+		}
+		entries, err := os.ReadDir(outside)
+		if err != nil || len(entries) != 0 {
+			t.Fatalf("archive wrote outside project: entries=%v err=%v", entries, err)
+		}
+	}
+}
 
 func TestArchiveIncompatibleStoreRequiresDigestAndMovesExactDatabase(t *testing.T) {
 	root := t.TempDir()

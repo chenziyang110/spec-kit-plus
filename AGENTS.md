@@ -318,20 +318,19 @@ references; do not hand-edit the block or regenerate it merely to revise this fi
 
 - Project cognition and Project Learning are always available, even without an active `sp-*` workflow.
 - When existing-system truth matters, use project cognition before broad source inspection and use its results to narrow live reads.
-- Run `specify-runtime learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.
+- Run `.\.specify\bin\specify-runtime.exe learning start --command '<workflow>' --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.
 
 ## Workflow Invocation Boundary
 
-- All `sp-*` and `spx-*` workflow skills are user-invoked only. No passive
-  workflow router is installed, and natural-language similarity must not select
-  or enter a workflow indirectly.
+- All `sp-*` and `spx-*` workflow skills are user-invoked only.
+- No passive workflow router is installed; natural-language similarity must not select, load, enter, or hand off into a workflow indirectly.
 - If the user invokes an `sp-*` or `spx-*` workflow, follow that workflow's own contract.
 
 ## Command Surface Rules
 
-- Treat live `specify --help` output as the authoritative CLI surface.
-- Before suggesting or running a `specify <subcommand>` invocation, verify that help exposes it.
-- Do not invent unsupported CLI names such as `specify create-feature`.
+- Treat `.\.specify\bin\specify-runtime.exe api list --format json` as the authoritative agent-facing CLI surface; use `.\.specify\bin\specify-runtime.exe api show workflow.block --format json` and `.\.specify\bin\specify-runtime.exe api schema workflow-block-input --format json` only for the blocked-exit contract.
+- Every agent-run helper command must use the project-local `specify-runtime`; Python `specify` is human-only for bootstrap, init, upgrade, repair, and legacy operator maintenance.
+- Do not invent unsupported CLI names such as `specify-runtime create-feature`.
 - Feature creation uses the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`; default feature workspace names use `YYYY-MM-DD-<slug>`.
 
 ## Durable State

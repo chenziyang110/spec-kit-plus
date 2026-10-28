@@ -116,7 +116,7 @@ project_cognition_refresh:
 		t.Fatalf("expected close blocked without cognition receipt")
 	}
 
-	// Greenfield minimum: mark-dirty with reason is allowed.
+	// A legacy dirty record remains auditable, but cannot close source work.
 	env = runScriptDomainEnvelope(t, runQuick, []string{
 		"--project-root", root,
 		"cognition-closeout", "260806-cognition",
@@ -137,8 +137,8 @@ project_cognition_refresh:
 	env = runScriptDomainEnvelope(t, runQuick, []string{
 		"--project-root", root, "close", "260806-cognition", "resolved",
 	})
-	if env.Status != "ok" {
-		t.Fatalf("close after mark-dirty should pass: %v", env.Blockers)
+	if env.Status == "ok" || !strings.Contains(fmt.Sprint(env.Blockers), "legacy_receipt_missing_strong_binding") {
+		t.Fatalf("legacy dirty record became strong proof: %v", env.Blockers)
 	}
 }
 

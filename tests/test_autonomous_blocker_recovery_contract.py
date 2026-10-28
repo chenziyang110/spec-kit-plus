@@ -4,6 +4,8 @@ import json
 import re
 from pathlib import Path
 
+from specify_cli.integrations.base import IntegrationBase
+
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ("fast", "quick", "implement", "debug")
@@ -55,6 +57,37 @@ def test_four_classic_workflows_include_autonomous_recovery() -> None:
     for workflow in WORKFLOWS:
         command = _read(f"templates/commands/{workflow}.md")
         assert CLASSIC_INCLUDE in command, workflow
+
+
+def test_every_classic_workflow_renders_recovery_once_before_its_body() -> None:
+    templates = sorted((ROOT / "templates/commands").glob("*.md"))
+    assert len(templates) == 29
+    for template in templates:
+        rendered = IntegrationBase.render_template_content(
+            template.read_text(encoding="utf-8"), template_path=template
+        )
+        assert rendered.count("## Autonomous Blocker Recovery") == 1, template.name
+        assert "every `sp-*` workflow" in rendered, template.name
+        assert "{{spec-kit-include:" not in rendered, template.name
+
+
+def test_recovery_contracts_preserve_gates_and_minimal_verification() -> None:
+    for relative in (
+        "templates/command-partials/common/autonomous-blocker-recovery.md",
+        "templates/advanced-skills/_shared/autonomous-blocker-recovery.md",
+    ):
+        contract = _compact(relative)
+        for guard in (
+            "failed gate closed" if "advanced-skills" in relative else "failed gate remains closed",
+            "independent acceptance",
+            "read-only/review workflows",
+            "verification budget",
+            "narrowest meaningful repair check",
+            "never edit runtime storage",
+            "no new stage authority",
+            "never successful completion",
+        ):
+            assert guard in contract, (relative, guard)
 
 
 def test_four_spx_workflows_route_to_the_shared_recovery_reference() -> None:
@@ -129,7 +162,9 @@ def test_recovery_preserves_explicit_cross_workflow_handoff_boundaries() -> None
             "stop and route to the owning upstream phase",
         ),
         "templates/command-references/debug/fix-gate.md": (
-            "if that expands beyond the debug fix lane, route it through `/sp-quick`",
+            "approved registered causal scope",
+            "without invoking another user-invoked workflow",
+            "use `/sp-specify` only when the user explicitly chooses",
         ),
         "templates/advanced-skills/spx-fast/SKILL.md": (
             "this invocation authorizes only this workflow stage",

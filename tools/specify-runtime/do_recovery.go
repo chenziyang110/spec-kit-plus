@@ -28,6 +28,25 @@ func (input *doResumeInput) UnmarshalJSON(raw []byte) error {
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		return err
 	}
+	if _, present := fields["external_changes"]; present {
+		if value.ExternalChanges == nil || len(value.ExternalChanges.Paths) == 0 {
+			return fmt.Errorf("external_changes requires a nonempty paths inspection")
+		}
+		if _, present := fields["attempt_id"]; present {
+			return fmt.Errorf("external_changes cannot carry attempt_id")
+		}
+		if _, present := fields["replan"]; present {
+			return fmt.Errorf("external_changes cannot carry replan")
+		}
+	}
+	if value.Replan != nil && value.Replan.Mode == "unstarted" {
+		_, hasAttempt := fields["attempt_id"]
+		if _, present := fields["recovery"]; present || hasAttempt {
+			return fmt.Errorf("unstarted replan does not fabricate failed-attempt recovery")
+		}
+		*input = doResumeInput(value)
+		return nil
+	}
 	var recovery map[string]json.RawMessage
 	if err := json.Unmarshal(fields["recovery"], &recovery); err != nil {
 		return err
@@ -42,6 +61,25 @@ func (input *doResumeInput) UnmarshalJSON(raw []byte) error {
 	}
 	*input = doResumeInput(value)
 	return nil
+}
+
+func (input doResumeInput) MarshalJSON() ([]byte, error) {
+	if input.ExternalChanges != nil {
+		value := map[string]any{"expected_revision": input.ExpectedRevision, "external_changes": input.ExternalChanges, "recovery": input.Recovery}
+		if input.WorkFence != 0 {
+			value["work_fence"] = input.WorkFence
+		}
+		return json.Marshal(value)
+	}
+	if input.Replan != nil && input.Replan.Mode == "unstarted" && input.AttemptID == "" && input.Recovery == (DoRecovery{}) {
+		value := map[string]any{"expected_revision": input.ExpectedRevision, "replan": input.Replan}
+		if input.WorkFence != 0 {
+			value["work_fence"] = input.WorkFence
+		}
+		return json.Marshal(value)
+	}
+	type plain doResumeInput
+	return json.Marshal(plain(input))
 }
 
 func doBlockFinish(root string, session DoSession, digest string, input doFinishInput) (DoSession, error) {
@@ -186,8 +224,11 @@ func doRecoveryEvidenceRef(session DoSession, input doResumeInput) string {
 // with the recovery receipt (and definition epochs when replanning).
 func doPrepareRecovery(root string, session DoSession, input doResumeInput) (DoRecovery, []fileTransactionUpdate, error) {
 	recovery := input.Recovery
-	if strings.TrimSpace(recovery.Reason) == "" || len(recovery.Reason) > 4096 || !recovery.ProcessesStopped || !recovery.SideEffectsInspected {
-		return recovery, nil, fmt.Errorf("recovery requires inspected side effects, stopped prior processes, and a bounded concrete reason")
+	if strings.TrimSpace(recovery.Reason) == "" || len(recovery.Reason) > 4096 || !recovery.SideEffectsInspected {
+		return recovery, nil, fmt.Errorf("recovery requires inspected side effects and a bounded concrete reason")
+	}
+	if err := doRecoveryMatchesOperation(session, input); err != nil {
+		return recovery, nil, err
 	}
 	if recovery.EvidenceSHA256 != "" {
 		return recovery, nil, fmt.Errorf("recovery evidence_sha256 is runtime-owned")
@@ -205,6 +246,11 @@ func doPrepareRecovery(root string, session DoSession, input doResumeInput) (DoR
 			return recovery, nil, err
 		}
 		raw := []byte(recovery.EvidenceText)
+		if recovery.NativeActionSettled {
+			if err := doNativeSensitiveCheck(root, map[string]string{"reason": recovery.Reason, "evidence": recovery.EvidenceText}); err != nil {
+				return recovery, nil, err
+			}
+		}
 		recovery.EvidenceText = "" // Persist one immutable snapshot, not duplicate text in session history.
 		recovery.EvidenceRef = ref
 		recovery.EvidenceSHA256 = doBytesDigest(raw)
@@ -237,12 +283,47 @@ func doRememberResume(session *DoSession, requestDigest, evidenceDigest string) 
 }
 
 func doVerifyRecoveryEvidence(root string, recovery DoRecovery) error {
-	if strings.TrimSpace(recovery.Reason) == "" || !recovery.ProcessesStopped || !recovery.SideEffectsInspected || recovery.EvidenceText != "" || recovery.EvidenceRef == "" || !playbookDigestPattern.MatchString(recovery.EvidenceSHA256) {
-		return fmt.Errorf("recovery lacks its completed process/effect inspection and bound evidence")
+	if strings.TrimSpace(recovery.Reason) == "" || (!recovery.ProcessesStopped && !recovery.NativeActionSettled) || !recovery.SideEffectsInspected || recovery.EvidenceText != "" || recovery.EvidenceRef == "" || !playbookDigestPattern.MatchString(recovery.EvidenceSHA256) {
+		return fmt.Errorf("recovery lacks its completed action/effect inspection and bound evidence")
 	}
 	raw, err := secureProjectReadFile(root, recovery.EvidenceRef)
 	if err != nil || len(raw) == 0 || len(raw) > 2*1024*1024 || doBytesDigest(raw) != recovery.EvidenceSHA256 {
 		return fmt.Errorf("inspection record is missing or changed")
+	}
+	return nil
+}
+
+func doRecoveryMatchesAttempt(attempt DoAttempt, recovery DoRecovery) error {
+	if attempt.NativeAction != nil {
+		if !recovery.NativeActionSettled {
+			return fmt.Errorf("native recovery requires native_action_settled after inspecting the actual tool operation")
+		}
+	} else if !recovery.ProcessesStopped {
+		return fmt.Errorf("process recovery requires stopped prior processes")
+	}
+	return nil
+}
+
+func doRecoveryMatchesOperation(session DoSession, input doResumeInput) error {
+	if input.AttemptID != "" {
+		for _, attempt := range session.Attempts {
+			if attempt.ID == input.AttemptID {
+				return doRecoveryMatchesAttempt(attempt, input.Recovery)
+			}
+		}
+		return fmt.Errorf("recovery attempt does not belong to this session")
+	}
+	// Work/blocker recovery is session-wide. Mixed procedures must reconcile
+	// both kinds of in-flight effects; a native flag cannot excuse a process.
+	for _, step := range session.Definition.Steps {
+		if err := doRecoveryMatchesAttempt(DoAttempt{NativeAction: step.NativeAction}, input.Recovery); err != nil {
+			return err
+		}
+	}
+	for _, check := range session.Definition.Checks {
+		if err := doRecoveryMatchesAttempt(DoAttempt{NativeAction: check.NativeAction}, input.Recovery); err != nil {
+			return err
+		}
 	}
 	return nil
 }

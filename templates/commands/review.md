@@ -60,6 +60,13 @@ real entrypoint against the final reviewed snapshot.
 
 {{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
 
+For source-changing Review repair joins, first call the planner in the shared
+inline closeout contract for the owned changed paths, then use its inputs to begin
+the native work/source binding before the existing delivery revalidation attempt. Seal it with that
+attempt's fresh integrated observations, then require the current binding at
+shared apply and Review closeout. Keep the final scenario denominator, independent
+revalidation and human Accept boundary; do not open another logical gate.
+
 ## Detailed References
 
 Read [Reference index](references/INDEX.md) before applying detailed contracts.

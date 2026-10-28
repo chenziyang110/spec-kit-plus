@@ -2,16 +2,25 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://spec-kit-plus.local/schemas/project-learning-record-schema.json",
   "title": "Project Learning Agent Read Contract",
-  "description": "Read-only progressive-disclosure contract: start/list return compact decision cards; show expands exactly one card.",
+  "description": "Read-only progressive-disclosure contract: start/list return compact decision cards; show expands one record with optional versioned runtime-owned applicability consistency checks. Applicability is distinct from semantic truth and lifecycle confirmation.",
   "oneOf": [
-    { "$ref": "#/$defs/startSummary" },
-    { "$ref": "#/$defs/summaryList" },
-    { "$ref": "#/$defs/detailRecord" }
+    {
+      "$ref": "#/$defs/startSummary"
+    },
+    {
+      "$ref": "#/$defs/summaryList"
+    },
+    {
+      "$ref": "#/$defs/detailRecord"
+    }
   ],
   "$defs": {
     "stringList": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 },
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
       "uniqueItems": true
     },
     "redactionLabels": {
@@ -32,22 +41,44 @@
     },
     "contentSafety": {
       "type": "object",
-      "required": ["sensitivity"],
+      "required": [
+        "sensitivity"
+      ],
       "properties": {
         "sensitivity": {
-          "enum": ["safe", "sanitized"],
+          "enum": [
+            "safe",
+            "sanitized"
+          ],
           "description": "safe means no sensitive content is present; sanitized means sensitive source content was abstracted or replaced in the agent-facing projection."
         },
-        "risk_tier": { "enum": ["none", "moderate", "high"] },
-        "redaction_labels": { "$ref": "#/$defs/redactionLabels" }
+        "risk_tier": {
+          "enum": [
+            "none",
+            "moderate",
+            "high"
+          ]
+        },
+        "redaction_labels": {
+          "$ref": "#/$defs/redactionLabels"
+        }
       },
       "additionalProperties": false
     },
     "learningValue": {
       "type": "object",
-      "required": ["tier", "reason_codes"],
+      "required": [
+        "tier",
+        "reason_codes"
+      ],
       "properties": {
-        "tier": { "enum": ["high", "medium", "low"] },
+        "tier": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
         "reason_codes": {
           "type": "array",
           "items": {
@@ -73,11 +104,28 @@
     },
     "assessmentContentSafety": {
       "type": "object",
-      "required": ["sensitivity", "risk_tier", "redaction_labels"],
+      "required": [
+        "sensitivity",
+        "risk_tier",
+        "redaction_labels"
+      ],
       "properties": {
-        "sensitivity": { "enum": ["safe", "sanitized"] },
-        "risk_tier": { "enum": ["none", "moderate", "high"] },
-        "redaction_labels": { "$ref": "#/$defs/redactionLabels" }
+        "sensitivity": {
+          "enum": [
+            "safe",
+            "sanitized"
+          ]
+        },
+        "risk_tier": {
+          "enum": [
+            "none",
+            "moderate",
+            "high"
+          ]
+        },
+        "redaction_labels": {
+          "$ref": "#/$defs/redactionLabels"
+        }
       },
       "additionalProperties": false
     },
@@ -90,10 +138,19 @@
         "decision_reason"
       ],
       "properties": {
-        "learning_value": { "$ref": "#/$defs/learningValue" },
-        "content_safety": { "$ref": "#/$defs/assessmentContentSafety" },
+        "learning_value": {
+          "$ref": "#/$defs/learningValue"
+        },
+        "content_safety": {
+          "$ref": "#/$defs/assessmentContentSafety"
+        },
         "decision": {
-          "enum": ["capture-safe", "capture-sanitized", "defer", "ignore"]
+          "enum": [
+            "capture-safe",
+            "capture-sanitized",
+            "defer",
+            "ignore"
+          ]
         },
         "decision_reason": {
           "enum": [
@@ -108,56 +165,114 @@
       "allOf": [
         {
           "if": {
-            "properties": { "decision": { "const": "capture-safe" } },
-            "required": ["decision"]
+            "properties": {
+              "decision": {
+                "const": "capture-safe"
+              }
+            },
+            "required": [
+              "decision"
+            ]
           },
           "then": {
             "properties": {
               "content_safety": {
                 "properties": {
-                  "sensitivity": { "const": "safe" },
-                  "risk_tier": { "const": "none" },
-                  "redaction_labels": { "maxItems": 0 }
+                  "sensitivity": {
+                    "const": "safe"
+                  },
+                  "risk_tier": {
+                    "const": "none"
+                  },
+                  "redaction_labels": {
+                    "maxItems": 0
+                  }
                 },
-                "required": ["sensitivity", "risk_tier", "redaction_labels"]
+                "required": [
+                  "sensitivity",
+                  "risk_tier",
+                  "redaction_labels"
+                ]
               },
-              "decision_reason": { "const": "safe_content" }
+              "decision_reason": {
+                "const": "safe_content"
+              }
             }
           }
         },
         {
           "if": {
-            "properties": { "decision": { "const": "capture-sanitized" } },
-            "required": ["decision"]
+            "properties": {
+              "decision": {
+                "const": "capture-sanitized"
+              }
+            },
+            "required": [
+              "decision"
+            ]
           },
           "then": {
             "properties": {
               "content_safety": {
                 "properties": {
-                  "sensitivity": { "const": "sanitized" },
-                  "risk_tier": { "enum": ["moderate", "high"] },
-                  "redaction_labels": { "minItems": 1 }
+                  "sensitivity": {
+                    "const": "sanitized"
+                  },
+                  "risk_tier": {
+                    "enum": [
+                      "moderate",
+                      "high"
+                    ]
+                  },
+                  "redaction_labels": {
+                    "minItems": 1
+                  }
                 },
-                "required": ["sensitivity", "risk_tier", "redaction_labels"]
+                "required": [
+                  "sensitivity",
+                  "risk_tier",
+                  "redaction_labels"
+                ]
               },
-              "decision_reason": { "const": "valuable_after_abstraction" }
+              "decision_reason": {
+                "const": "valuable_after_abstraction"
+              }
             }
           }
         },
         {
           "if": {
-            "properties": { "decision": { "const": "defer" } },
-            "required": ["decision"]
+            "properties": {
+              "decision": {
+                "const": "defer"
+              }
+            },
+            "required": [
+              "decision"
+            ]
           },
           "then": {
             "properties": {
               "content_safety": {
                 "properties": {
-                  "sensitivity": { "const": "sanitized" },
-                  "risk_tier": { "enum": ["moderate", "high"] },
-                  "redaction_labels": { "minItems": 1 }
+                  "sensitivity": {
+                    "const": "sanitized"
+                  },
+                  "risk_tier": {
+                    "enum": [
+                      "moderate",
+                      "high"
+                    ]
+                  },
+                  "redaction_labels": {
+                    "minItems": 1
+                  }
                 },
-                "required": ["sensitivity", "risk_tier", "redaction_labels"]
+                "required": [
+                  "sensitivity",
+                  "risk_tier",
+                  "redaction_labels"
+                ]
               },
               "decision_reason": {
                 "const": "sensitive_without_reusable_abstraction"
@@ -167,16 +282,30 @@
         },
         {
           "if": {
-            "properties": { "decision": { "const": "ignore" } },
-            "required": ["decision"]
+            "properties": {
+              "decision": {
+                "const": "ignore"
+              }
+            },
+            "required": [
+              "decision"
+            ]
           },
           "then": {
             "properties": {
               "learning_value": {
-                "properties": { "tier": { "const": "low" } },
-                "required": ["tier"]
+                "properties": {
+                  "tier": {
+                    "const": "low"
+                  }
+                },
+                "required": [
+                  "tier"
+                ]
               },
-              "decision_reason": { "const": "routine_outcome" }
+              "decision_reason": {
+                "const": "routine_outcome"
+              }
             }
           }
         },
@@ -184,14 +313,26 @@
           "if": {
             "properties": {
               "learning_value": {
-                "properties": { "tier": { "const": "low" } },
-                "required": ["tier"]
+                "properties": {
+                  "tier": {
+                    "const": "low"
+                  }
+                },
+                "required": [
+                  "tier"
+                ]
               }
             },
-            "required": ["learning_value"]
+            "required": [
+              "learning_value"
+            ]
           },
           "then": {
-            "properties": { "decision": { "const": "ignore" } }
+            "properties": {
+              "decision": {
+                "const": "ignore"
+              }
+            }
           }
         }
       ],
@@ -200,13 +341,27 @@
     "learningFacets": {
       "type": "object",
       "properties": {
-        "components": { "$ref": "#/$defs/stringList" },
-        "operation_owners": { "$ref": "#/$defs/stringList" },
-        "consumer_owners": { "$ref": "#/$defs/stringList" },
-        "outcomes": { "$ref": "#/$defs/stringList" },
-        "states": { "$ref": "#/$defs/stringList" },
-        "entrypoints": { "$ref": "#/$defs/stringList" },
-        "validation_surfaces": { "$ref": "#/$defs/stringList" }
+        "components": {
+          "$ref": "#/$defs/stringList"
+        },
+        "operation_owners": {
+          "$ref": "#/$defs/stringList"
+        },
+        "consumer_owners": {
+          "$ref": "#/$defs/stringList"
+        },
+        "outcomes": {
+          "$ref": "#/$defs/stringList"
+        },
+        "states": {
+          "$ref": "#/$defs/stringList"
+        },
+        "entrypoints": {
+          "$ref": "#/$defs/stringList"
+        },
+        "validation_surfaces": {
+          "$ref": "#/$defs/stringList"
+        }
       },
       "minProperties": 1,
       "additionalProperties": false
@@ -221,11 +376,23 @@
         "cross_command"
       ],
       "properties": {
-        "matched_facets": { "$ref": "#/$defs/learningFacets" },
-        "matched_dimensions": { "type": "integer", "minimum": 1 },
-        "matched_values": { "type": "integer", "minimum": 1 },
-        "exact_operation_owner": { "type": "boolean" },
-        "cross_command": { "type": "boolean" }
+        "matched_facets": {
+          "$ref": "#/$defs/learningFacets"
+        },
+        "matched_dimensions": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "matched_values": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "exact_operation_owner": {
+          "type": "boolean"
+        },
+        "cross_command": {
+          "type": "boolean"
+        }
       },
       "additionalProperties": false
     },
@@ -247,7 +414,12 @@
       ]
     },
     "learningStatus": {
-      "enum": ["candidate", "confirmed", "promoted-rule", "indexed"]
+      "enum": [
+        "candidate",
+        "confirmed",
+        "promoted-rule",
+        "indexed"
+      ]
     },
     "summaryCard": {
       "type": "object",
@@ -265,27 +437,83 @@
         "show_argv"
       ],
       "properties": {
-        "ref": { "type": "string", "minLength": 1 },
-        "summary": { "type": "string", "minLength": 1, "description": "One-line sanitized agent-facing identity; evidence, raw content, and rationale are intentionally omitted." },
-        "action": { "type": "string", "minLength": 1, "description": "Imperative next action for a future Agent." },
-        "type": { "$ref": "#/$defs/learningType" },
-        "status": { "$ref": "#/$defs/learningStatus" },
-        "signal": { "enum": ["low", "medium", "high"] },
-        "occurrences": { "type": "integer", "minimum": 1 },
-        "applies_to": { "$ref": "#/$defs/stringList" },
-        "trigger_signals": { "$ref": "#/$defs/stringList", "description": "Canonical sanitized agent-facing trigger tags for new records; legacy records may contain older free-form tags for compatibility." },
-        "source_layer": { "enum": ["candidate", "confirmed-learning", "project-rule", "index-only"] },
-        "sensitivity": { "enum": ["safe", "sanitized"] },
-        "redaction_labels": { "$ref": "#/$defs/redactionLabels" },
-        "assessment": { "$ref": "#/$defs/assessment" },
+        "ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "description": "One-line sanitized agent-facing identity; evidence, raw content, and rationale are intentionally omitted."
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Imperative next action for a future Agent."
+        },
+        "type": {
+          "$ref": "#/$defs/learningType"
+        },
+        "status": {
+          "$ref": "#/$defs/learningStatus"
+        },
+        "signal": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "occurrences": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "applies_to": {
+          "$ref": "#/$defs/stringList"
+        },
+        "trigger_signals": {
+          "$ref": "#/$defs/stringList",
+          "description": "Canonical sanitized agent-facing trigger tags for new records; legacy records may contain older free-form tags for compatibility."
+        },
+        "source_layer": {
+          "enum": [
+            "candidate",
+            "confirmed-learning",
+            "project-rule",
+            "index-only"
+          ]
+        },
+        "sensitivity": {
+          "enum": [
+            "safe",
+            "sanitized"
+          ]
+        },
+        "redaction_labels": {
+          "$ref": "#/$defs/redactionLabels"
+        },
+        "assessment": {
+          "$ref": "#/$defs/assessment"
+        },
         "show_argv": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 },
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
           "minItems": 7,
           "description": "Ready-to-execute argv that expands only this record."
         },
-        "why_relevant": { "type": "string", "minLength": 1 },
-        "context_match": { "$ref": "#/$defs/contextMatch" }
+        "why_relevant": {
+          "type": "string",
+          "minLength": 1
+        },
+        "context_match": {
+          "$ref": "#/$defs/contextMatch"
+        },
+        "applicability": {
+          "$ref": "#/$defs/applicabilitySummary"
+        }
       },
       "additionalProperties": false
     },
@@ -302,36 +530,104 @@
         "warnings"
       ],
       "properties": {
-        "schema_version": { "const": 1 },
-        "record_schema": { "const": ".specify/templates/project-learning-record-schema.json#/$defs/summaryList" },
-        "command": { "type": ["string", "null"] },
-        "policy": { "type": ["string", "null"] },
-        "task_context": { "$ref": "#/$defs/learningFacets" },
+        "schema_version": {
+          "const": 1
+        },
+        "record_schema": {
+          "const": ".specify/templates/project-learning-record-schema.json#/$defs/summaryList"
+        },
+        "command": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "policy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "task_context": {
+          "$ref": "#/$defs/learningContext"
+        },
         "filters": {
           "type": "object",
-          "required": ["type", "status", "query"],
+          "required": [
+            "type",
+            "status",
+            "query"
+          ],
           "properties": {
-            "type": { "type": ["string", "null"] },
-            "status": { "type": ["string", "null"] },
-            "query": { "type": ["string", "null"] }
+            "type": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "status": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "query": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           },
           "additionalProperties": false
         },
         "pagination": {
           "type": "object",
-          "required": ["cursor", "limit", "returned", "total", "next_cursor", "next_argv"],
+          "required": [
+            "cursor",
+            "limit",
+            "returned",
+            "total",
+            "next_cursor",
+            "next_argv"
+          ],
           "properties": {
-            "cursor": { "type": "integer", "minimum": 0 },
-            "limit": { "type": ["integer", "null"], "minimum": 1 },
-            "returned": { "type": "integer", "minimum": 0 },
-            "total": { "type": "integer", "minimum": 0 },
-            "next_cursor": { "type": ["integer", "null"], "minimum": 0 },
+            "cursor": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "limit": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "returned": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "next_cursor": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
             "next_argv": {
               "oneOf": [
-                { "type": "null" },
+                {
+                  "type": "null"
+                },
                 {
                   "type": "array",
-                  "items": { "type": "string", "minLength": 1 },
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
                   "minItems": 9
                 }
               ]
@@ -341,9 +637,13 @@
         },
         "items": {
           "type": "array",
-          "items": { "$ref": "#/$defs/summaryCard" }
+          "items": {
+            "$ref": "#/$defs/summaryCard"
+          }
         },
-        "warnings": { "$ref": "#/$defs/stringList" }
+        "warnings": {
+          "$ref": "#/$defs/stringList"
+        }
       },
       "additionalProperties": false
     },
@@ -362,26 +662,63 @@
         "warnings"
       ],
       "properties": {
-        "schema_version": { "const": 1 },
-        "record_schema": { "const": ".specify/templates/project-learning-record-schema.json#/$defs/startSummary" },
-        "command": { "type": "string", "minLength": 1 },
-        "policy": { "enum": ["skip", "consume-only", "consume-capture"] },
-        "read_only": { "const": true },
-        "task_context": { "$ref": "#/$defs/learningFacets" },
+        "schema_version": {
+          "const": 1
+        },
+        "record_schema": {
+          "const": ".specify/templates/project-learning-record-schema.json#/$defs/startSummary"
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy": {
+          "enum": [
+            "skip",
+            "consume-only",
+            "consume-capture"
+          ]
+        },
+        "read_only": {
+          "const": true
+        },
+        "task_context": {
+          "$ref": "#/$defs/learningContext"
+        },
         "items": {
           "type": "array",
-          "items": { "$ref": "#/$defs/summaryCard" }
+          "items": {
+            "$ref": "#/$defs/summaryCard"
+          }
         },
-        "pagination": { "$ref": "#/$defs/pagination" },
+        "pagination": {
+          "$ref": "#/$defs/pagination"
+        },
         "promotion_ready": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["ref", "summary", "occurrences"],
+            "required": [
+              "ref",
+              "summary",
+              "occurrences"
+            ],
             "properties": {
-              "ref": { "type": "string", "minLength": 1 },
-              "summary": { "type": "string", "minLength": 1 },
-              "occurrences": { "type": "integer", "minimum": 2 }
+              "ref": {
+                "type": "string",
+                "minLength": 1
+              },
+              "summary": {
+                "type": "string",
+                "minLength": 1
+              },
+              "occurrences": {
+                "type": "integer",
+                "minimum": 2
+              },
+              "applicability": {
+                "$ref": "#/$defs/applicabilitySummary"
+              }
             },
             "additionalProperties": false
           }
@@ -390,34 +727,88 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["ref", "summary", "signal"],
+            "required": [
+              "ref",
+              "summary",
+              "signal"
+            ],
             "properties": {
-              "ref": { "type": "string", "minLength": 1 },
-              "summary": { "type": "string", "minLength": 1 },
-              "signal": { "enum": ["low", "medium", "high"] }
+              "ref": {
+                "type": "string",
+                "minLength": 1
+              },
+              "summary": {
+                "type": "string",
+                "minLength": 1
+              },
+              "signal": {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              "applicability": {
+                "$ref": "#/$defs/applicabilitySummary"
+              }
             },
             "additionalProperties": false
           }
         },
-        "warnings": { "$ref": "#/$defs/stringList" }
+        "warnings": {
+          "$ref": "#/$defs/stringList"
+        }
       },
       "additionalProperties": false
     },
     "pagination": {
       "type": "object",
-      "required": ["cursor", "limit", "returned", "total", "next_cursor", "next_argv"],
+      "required": [
+        "cursor",
+        "limit",
+        "returned",
+        "total",
+        "next_cursor",
+        "next_argv"
+      ],
       "properties": {
-        "cursor": { "type": "integer", "minimum": 0 },
-        "limit": { "type": ["integer", "null"], "minimum": 1 },
-        "returned": { "type": "integer", "minimum": 0 },
-        "total": { "type": "integer", "minimum": 0 },
-        "next_cursor": { "type": ["integer", "null"], "minimum": 0 },
+        "cursor": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "limit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "returned": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "next_cursor": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
         "next_argv": {
           "oneOf": [
-            { "type": "null" },
+            {
+              "type": "null"
+            },
             {
               "type": "array",
-              "items": { "type": "string", "minLength": 1 },
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
               "minItems": 9
             }
           ]
@@ -444,76 +835,435 @@
         "warnings"
       ],
       "properties": {
-        "schema_version": { "const": 1 },
-        "record_schema": { "const": ".specify/templates/project-learning-record-schema.json#/$defs/detailRecord" },
-        "ref": { "type": "string", "minLength": 1 },
-        "id": { "type": "string", "minLength": 1 },
-        "summary": { "type": "string", "minLength": 1 },
-        "type": { "$ref": "#/$defs/learningType" },
-        "status": { "$ref": "#/$defs/learningStatus" },
+        "schema_version": {
+          "const": 1
+        },
+        "record_schema": {
+          "const": ".specify/templates/project-learning-record-schema.json#/$defs/detailRecord"
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "$ref": "#/$defs/learningType"
+        },
+        "status": {
+          "$ref": "#/$defs/learningStatus"
+        },
         "guidance": {
           "type": "object",
-          "required": ["problem", "action", "avoid", "success_criteria", "exceptions"],
+          "required": [
+            "problem",
+            "action",
+            "avoid",
+            "success_criteria",
+            "exceptions"
+          ],
           "properties": {
-            "problem": { "type": "string", "minLength": 1 },
-            "action": { "type": "string", "minLength": 1 },
-            "avoid": { "$ref": "#/$defs/stringList" },
-            "success_criteria": { "$ref": "#/$defs/stringList" },
-            "exceptions": { "$ref": "#/$defs/stringList" }
+            "problem": {
+              "type": "string",
+              "minLength": 1
+            },
+            "action": {
+              "type": "string",
+              "minLength": 1
+            },
+            "avoid": {
+              "$ref": "#/$defs/stringList"
+            },
+            "success_criteria": {
+              "$ref": "#/$defs/stringList"
+            },
+            "exceptions": {
+              "$ref": "#/$defs/stringList"
+            }
           },
           "additionalProperties": false
         },
         "applicability": {
           "type": "object",
-          "required": ["commands", "trigger_signals", "scope"],
+          "required": [
+            "commands",
+            "trigger_signals",
+            "scope"
+          ],
           "properties": {
-            "commands": { "$ref": "#/$defs/stringList" },
-            "trigger_signals": { "$ref": "#/$defs/stringList", "description": "Canonical sanitized agent-facing trigger tags for new records; legacy records may contain older free-form tags for compatibility." },
-            "scope": { "type": "string" },
-            "facets": { "$ref": "#/$defs/learningFacets" }
+            "commands": {
+              "$ref": "#/$defs/stringList"
+            },
+            "trigger_signals": {
+              "$ref": "#/$defs/stringList",
+              "description": "Canonical sanitized agent-facing trigger tags for new records; legacy records may contain older free-form tags for compatibility."
+            },
+            "scope": {
+              "type": "string"
+            },
+            "facets": {
+              "$ref": "#/$defs/learningFacets"
+            },
+            "reason_codes": {
+              "$ref": "#/$defs/stringList"
+            },
+            "binding_digest": {
+              "pattern": "^([0-9a-f]{64})?$",
+              "type": "string"
+            },
+            "version": {
+              "const": "learning-applicability.v1"
+            },
+            "applicable": {
+              "type": "boolean"
+            },
+            "read_only": {
+              "const": true
+            },
+            "state": {
+              "enum": [
+                "applicable",
+                "degraded",
+                "rejected"
+              ]
+            },
+            "binding": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/applicabilityBinding"
+                },
+                {
+                  "additionalProperties": false,
+                  "required": [
+                    "version",
+                    "invalid"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "invalid": {
+                      "const": true
+                    },
+                    "version": {
+                      "const": "learning-applicability.v1"
+                    }
+                  }
+                }
+              ]
+            },
+            "checks": {
+              "items": {
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "path"
+                ],
+                "type": "object",
+                "properties": {
+                  "current_sha256": {
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "matches": {
+                    "type": "boolean"
+                  },
+                  "kind": {
+                    "enum": [
+                      "source",
+                      "constraint",
+                      "counterevidence",
+                      "task_counterevidence"
+                    ]
+                  },
+                  "path": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "captured_bytes": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "captured_sha256": {
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "current_bytes": {
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                }
+              },
+              "type": "array"
+            }
           },
           "additionalProperties": false
         },
         "evidence": {
           "type": "object",
-          "required": ["observation", "decisive_signal", "false_starts", "rejected_paths", "root_cause_family"],
+          "required": [
+            "observation",
+            "decisive_signal",
+            "false_starts",
+            "rejected_paths",
+            "root_cause_family"
+          ],
           "properties": {
-            "observation": { "type": "string", "minLength": 1, "description": "Sanitized agent-facing projection; raw sensitive values must remain outside Learning storage, registry, and read API payloads." },
-            "decisive_signal": { "type": "string" },
-            "false_starts": { "$ref": "#/$defs/stringList" },
-            "rejected_paths": { "$ref": "#/$defs/stringList" },
-            "root_cause_family": { "type": "string" }
+            "observation": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Sanitized agent-facing projection; raw sensitive values must remain outside Learning storage, registry, and read API payloads."
+            },
+            "decisive_signal": {
+              "type": "string"
+            },
+            "false_starts": {
+              "$ref": "#/$defs/stringList"
+            },
+            "rejected_paths": {
+              "$ref": "#/$defs/stringList"
+            },
+            "root_cause_family": {
+              "type": "string"
+            }
           },
           "additionalProperties": false
         },
         "provenance": {
           "type": "object",
-          "required": ["source_command", "first_seen", "last_seen", "occurrences", "source_layer"],
+          "required": [
+            "source_command",
+            "first_seen",
+            "last_seen",
+            "occurrences",
+            "source_layer"
+          ],
           "properties": {
-            "source_command": { "type": "string", "minLength": 1 },
-            "first_seen": { "type": "string" },
-            "last_seen": { "type": "string" },
-            "occurrences": { "type": "integer", "minimum": 1 },
-            "source_layer": { "enum": ["candidate", "confirmed-learning", "project-rule", "index-only"] }
+            "source_command": {
+              "type": "string",
+              "minLength": 1
+            },
+            "first_seen": {
+              "type": "string"
+            },
+            "last_seen": {
+              "type": "string"
+            },
+            "occurrences": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "source_layer": {
+              "enum": [
+                "candidate",
+                "confirmed-learning",
+                "project-rule",
+                "index-only"
+              ]
+            }
           },
           "additionalProperties": false
         },
         "lifecycle": {
           "type": "object",
-          "required": ["signal", "pain_score", "injection_targets", "promotion_hint"],
+          "required": [
+            "signal",
+            "pain_score",
+            "injection_targets",
+            "promotion_hint"
+          ],
           "properties": {
-            "signal": { "enum": ["low", "medium", "high"] },
-            "pain_score": { "type": "integer", "minimum": 0 },
-            "injection_targets": { "$ref": "#/$defs/stringList" },
-            "promotion_hint": { "type": "string" }
+            "signal": {
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ]
+            },
+            "pain_score": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "injection_targets": {
+              "$ref": "#/$defs/stringList"
+            },
+            "promotion_hint": {
+              "type": "string"
+            }
           },
           "additionalProperties": false
         },
-        "content_safety": { "$ref": "#/$defs/contentSafety" },
-        "assessment": { "$ref": "#/$defs/assessment" },
-        "detail_path": { "type": ["string", "null"] },
-        "warnings": { "$ref": "#/$defs/stringList" }
+        "content_safety": {
+          "$ref": "#/$defs/contentSafety"
+        },
+        "assessment": {
+          "$ref": "#/$defs/assessment"
+        },
+        "detail_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "warnings": {
+          "$ref": "#/$defs/stringList"
+        }
       },
+      "additionalProperties": false
+    },
+    "applicabilityFile": {
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "bytes"
+      ],
+      "type": "object",
+      "properties": {
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "bytes": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      }
+    },
+    "applicabilityBinding": {
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "component",
+        "evidence_kind",
+        "sources",
+        "constraints",
+        "counterevidence",
+        "digest"
+      ],
+      "type": "object",
+      "properties": {
+        "component": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "version": {
+          "const": "learning-applicability.v1"
+        },
+        "counterevidence": {
+          "items": {
+            "$ref": "#/$defs/applicabilityFile"
+          },
+          "type": "array",
+          "maxItems": 32
+        },
+        "digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "constraints": {
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/applicabilityFile"
+          },
+          "type": "array",
+          "minItems": 1
+        },
+        "evidence_kind": {
+          "enum": [
+            "failure",
+            "recovery",
+            "correction",
+            "constraint"
+          ]
+        },
+        "sources": {
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/applicabilityFile"
+          },
+          "type": "array",
+          "minItems": 1
+        }
+      }
+    },
+    "applicabilitySummary": {
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "state",
+        "applicable",
+        "reason_codes",
+        "binding_digest",
+        "read_only"
+      ],
+      "type": "object",
+      "properties": {
+        "reason_codes": {
+          "$ref": "#/$defs/stringList"
+        },
+        "binding_digest": {
+          "pattern": "^([0-9a-f]{64})?$",
+          "type": "string"
+        },
+        "version": {
+          "const": "learning-applicability.v1"
+        },
+        "applicable": {
+          "type": "boolean"
+        },
+        "read_only": {
+          "const": true
+        },
+        "state": {
+          "enum": [
+            "applicable",
+            "degraded",
+            "rejected"
+          ]
+        }
+      }
+    },
+    "learningContext": {
+      "type": "object",
+      "properties": {
+        "components": {
+          "$ref": "#/$defs/stringList"
+        },
+        "operation_owners": {
+          "$ref": "#/$defs/stringList"
+        },
+        "consumer_owners": {
+          "$ref": "#/$defs/stringList"
+        },
+        "outcomes": {
+          "$ref": "#/$defs/stringList"
+        },
+        "states": {
+          "$ref": "#/$defs/stringList"
+        },
+        "entrypoints": {
+          "$ref": "#/$defs/stringList"
+        },
+        "validation_surfaces": {
+          "$ref": "#/$defs/stringList"
+        },
+        "constraint_files": {
+          "$ref": "#/$defs/stringList"
+        },
+        "counterevidence_files": {
+          "$ref": "#/$defs/stringList"
+        }
+      },
+      "minProperties": 1,
       "additionalProperties": false
     }
   }

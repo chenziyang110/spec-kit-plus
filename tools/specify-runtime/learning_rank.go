@@ -5,6 +5,9 @@ import "sort"
 func sortLearningCards(cards []map[string]any) {
 	sort.SliceStable(cards, func(i, j int) bool {
 		left, right := cards[i], cards[j]
+		if learningApplicabilityRank(left) != learningApplicabilityRank(right) {
+			return learningApplicabilityRank(left) < learningApplicabilityRank(right)
+		}
 		leftContext, rightContext := mapStringAny(left["context_match"]), mapStringAny(right["context_match"])
 		leftExact, _ := leftContext["exact_operation_owner"].(bool)
 		rightExact, _ := rightContext["exact_operation_owner"].(bool)

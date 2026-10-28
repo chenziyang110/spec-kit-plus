@@ -123,6 +123,8 @@ def test_ordinary_templates_do_not_allow_leader_or_team_fallback_for_subagent_wo
 
 def test_mandatory_subagent_templates_block_remaining_leader_path_fallbacks() -> None:
     targeted_commands = (
+        "deep-research",
+        "explain",
         "map-build",
         "map-scan",
         "prd-build",
@@ -150,7 +152,11 @@ def test_mandatory_subagent_templates_block_remaining_leader_path_fallbacks() ->
         content = _read_command(command_name).lower()
 
         assert "subagent-blocked" in content, command_name
-        assert "stop for escalation or recovery" in content, command_name
+        if command_name == "quick":
+            assert "stop for escalation or recovery" in content, command_name
+        else:
+            assert "no safe authorized recovery remains" in " ".join(content.split()), command_name
+            assert "exact resume action" in content, command_name
         for phrase in forbidden_phrases:
             if command_name == "quick" and phrase == "leader-inline":
                 continue

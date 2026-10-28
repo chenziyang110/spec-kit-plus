@@ -1,0 +1,761 @@
+{
+  "additionalProperties": false,
+  "anyOf": [
+    {
+      "required": [
+        "definition"
+      ]
+    },
+    {
+      "required": [
+        "method_binding"
+      ]
+    }
+  ],
+  "properties": {
+    "adapter_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "agent_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "context": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "definition": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Agent-owned method semantics only. Runtime derives identity, revision, digest, source fingerprints, and verification metadata. Steps stay ordered; matching a prior method never proves a new execution result.",
+      "properties": {
+        "aliases": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "applicability": {
+          "additionalProperties": false,
+          "maxProperties": 24,
+          "patternProperties": {
+            "^(os|arch|shell|toolchain\\.[a-z][a-z0-9_-]{0,31})$": {
+              "items": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 16,
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "type": "object"
+        },
+        "checks": {
+          "contains": {
+            "properties": {
+              "required": {
+                "const": true
+              }
+            },
+            "required": [
+              "required"
+            ],
+            "type": "object"
+          },
+          "items": {
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "const": "exit_code"
+                    }
+                  }
+                },
+                "then": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "native_action"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "result_path"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "json_pointer"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "expected_json"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "min_cases"
+                        ]
+                      }
+                    ]
+                  },
+                  "properties": {
+                    "argv": {
+                      "minItems": 1
+                    }
+                  },
+                  "required": [
+                    "argv"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "file",
+                        "json",
+                        "junit"
+                      ]
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "result_path"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "const": "json"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "expected_json"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "const": "junit"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "min_cases"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "const": "observation"
+                    }
+                  }
+                },
+                "then": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "result_path"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "min_cases"
+                        ]
+                      }
+                    ]
+                  },
+                  "properties": {
+                    "depends_on": {
+                      "minItems": 1
+                    }
+                  },
+                  "required": [
+                    "native_action",
+                    "expected_json"
+                  ]
+                }
+              },
+              {
+                "else": {
+                  "properties": {
+                    "cwd": {
+                      "maxLength": 512,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "cwd",
+                    "argv"
+                  ]
+                },
+                "if": {
+                  "required": [
+                    "native_action"
+                  ]
+                },
+                "then": {
+                  "not": {
+                    "required": [
+                      "script_ref"
+                    ]
+                  },
+                  "properties": {
+                    "argv": {
+                      "maxItems": 0
+                    },
+                    "cwd": {
+                      "const": ""
+                    }
+                  }
+                }
+              }
+            ],
+            "properties": {
+              "argv": {
+                "items": {
+                  "maxLength": 8192,
+                  "type": "string"
+                },
+                "maxItems": 128,
+                "type": "array"
+              },
+              "cwd": {
+                "maxLength": 512,
+                "type": "string"
+              },
+              "depends_on": {
+                "items": {
+                  "maxLength": 512,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 64,
+                "minItems": 0,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "expected_json": {},
+              "expected_result": {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$",
+                "type": "string"
+              },
+              "json_pointer": {
+                "maxLength": 2048,
+                "pattern": "^(/.*)?$",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "exit_code",
+                  "file",
+                  "json",
+                  "junit",
+                  "observation"
+                ]
+              },
+              "min_cases": {
+                "maximum": 10000000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "native_action": {
+                "additionalProperties": false,
+                "properties": {
+                  "arguments": {
+                    "description": "Actual structured native tool arguments, at most 64 KiB UTF-8, depth 24 and 4096 nodes. Duplicate keys and secret values are rejected. Runtime records this call but never executes it or grants authority over its target.",
+                    "maxProperties": 128,
+                    "type": "object"
+                  },
+                  "kind": {
+                    "enum": [
+                      "file",
+                      "browser",
+                      "desktop",
+                      "connector"
+                    ],
+                    "type": "string"
+                  },
+                  "target": {
+                    "maxLength": 2048,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "tool": {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "tool",
+                  "target",
+                  "arguments"
+                ],
+                "type": "object"
+              },
+              "purpose": {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "result_path": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "script_ref": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "purpose",
+              "depends_on",
+              "required",
+              "expected_result",
+              "kind"
+            ],
+            "type": "object"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "type": "array"
+        },
+        "goal": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string"
+        },
+        "learning_refs": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "operation": {
+          "enum": [
+            "build",
+            "package",
+            "test",
+            "check",
+            "generate",
+            "maintenance",
+            "custom"
+          ]
+        },
+        "owner": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": false,
+          "description": "Nonsecret declared inputs. Use {{param:name}} in complete argv values or supported path/native input fields. Identity, tool names, scripts and dependencies remain fixed. Example values validate structure; they do not prove every parameter combination.",
+          "maxProperties": 32,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,47}$": {
+              "additionalProperties": false,
+              "properties": {
+                "allowed_values": {
+                  "items": {
+                    "maxLength": 512,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "maxItems": 32,
+                  "minItems": 1,
+                  "type": "array",
+                  "uniqueItems": true
+                },
+                "default": {
+                  "maxLength": 4096,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "example": {
+                  "maxLength": 4096,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "string",
+                    "enum",
+                    "path"
+                  ],
+                  "type": "string"
+                },
+                "max_length": {
+                  "maximum": 4096,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "pattern": {
+                  "maxLength": 512,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "required": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "kind",
+                "required",
+                "example"
+              ],
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "source_files": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "steps": {
+          "contains": {
+            "properties": {
+              "required": {
+                "const": true
+              }
+            },
+            "required": [
+              "required"
+            ],
+            "type": "object"
+          },
+          "items": {
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "source_writes": {
+                      "minItems": 1
+                    }
+                  },
+                  "required": [
+                    "source_writes"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "side_effect": {
+                      "const": "local_write"
+                    }
+                  }
+                }
+              },
+              {
+                "else": {
+                  "properties": {
+                    "argv": {
+                      "minItems": 1
+                    },
+                    "cwd": {
+                      "maxLength": 512,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "cwd",
+                    "argv"
+                  ]
+                },
+                "if": {
+                  "required": [
+                    "native_action"
+                  ]
+                },
+                "then": {
+                  "not": {
+                    "required": [
+                      "script_ref"
+                    ]
+                  },
+                  "properties": {
+                    "argv": {
+                      "maxItems": 0
+                    },
+                    "cwd": {
+                      "const": ""
+                    }
+                  }
+                }
+              }
+            ],
+            "properties": {
+              "argv": {
+                "items": {
+                  "maxLength": 8192,
+                  "type": "string"
+                },
+                "maxItems": 128,
+                "type": "array"
+              },
+              "cwd": {
+                "maxLength": 512,
+                "type": "string"
+              },
+              "depends_on": {
+                "items": {
+                  "maxLength": 512,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 64,
+                "minItems": 0,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "expected_result": {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$",
+                "type": "string"
+              },
+              "native_action": {
+                "additionalProperties": false,
+                "properties": {
+                  "arguments": {
+                    "description": "Actual structured native tool arguments, at most 64 KiB UTF-8, depth 24 and 4096 nodes. Duplicate keys and secret values are rejected. Runtime records this call but never executes it or grants authority over its target.",
+                    "maxProperties": 128,
+                    "type": "object"
+                  },
+                  "kind": {
+                    "enum": [
+                      "file",
+                      "browser",
+                      "desktop",
+                      "connector"
+                    ],
+                    "type": "string"
+                  },
+                  "target": {
+                    "maxLength": 2048,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "tool": {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "tool",
+                  "target",
+                  "arguments"
+                ],
+                "type": "object"
+              },
+              "purpose": {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "script_ref": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "side_effect": {
+                "enum": [
+                  "read",
+                  "local_write",
+                  "external_mutation"
+                ]
+              },
+              "source_writes": {
+                "description": "Exact project-relative source paths or directories this local_write step may change. Do start requires them inside its Work-authorized write_scope; outputs alone do not need this field. The runtime records before/after source bases and requires fresh downstream checks.",
+                "items": {
+                  "maxLength": 512,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 64,
+                "minItems": 0,
+                "type": "array",
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "id",
+              "purpose",
+              "depends_on",
+              "required",
+              "expected_result",
+              "side_effect"
+            ],
+            "type": "object"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "type": "array"
+        },
+        "target": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "task_family": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string"
+        },
+        "variant": {
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "target",
+        "owner",
+        "variant",
+        "title",
+        "goal",
+        "aliases",
+        "applicability",
+        "source_files",
+        "steps",
+        "checks",
+        "learning_refs"
+      ],
+      "title": "Playbook definition input",
+      "type": "object"
+    },
+    "goal": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "method_binding": {
+      "additionalProperties": false,
+      "properties": {
+        "content_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "content_digest"
+      ],
+      "type": "object"
+    },
+    "output_scope": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "parameters": {
+      "additionalProperties": {
+        "maxLength": 4096,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxProperties": 32,
+      "type": "object"
+    },
+    "session_id": {
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$",
+      "type": "string"
+    },
+    "source_files": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "write_scope": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "agent_id",
+    "adapter_id"
+  ],
+  "type": "object"
+}

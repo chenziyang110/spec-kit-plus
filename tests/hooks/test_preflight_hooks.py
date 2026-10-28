@@ -349,7 +349,7 @@ def test_preflight_warns_same_feature_implement_when_lane_id_differs(tmp_path: P
     assert any("cognition" in message.lower() or "shared_surface_changed" in message for message in result.warnings)
 
 
-def test_preflight_warns_same_lane_implement_when_dirty_scope_does_not_overlap(tmp_path: Path):
+def test_preflight_blocks_legacy_packet_same_lane_implement_when_dirty_scope_does_not_overlap(tmp_path: Path):
     project = _create_project(tmp_path)
     _write_cognition_baseline(project)
     feature_dir = project / "specs" / "001-demo"
@@ -426,12 +426,18 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_does_not_overlap(t
         },
     )
 
-    assert result.status == "warn"
-    assert result.errors == []
-    assert any("shared_surface_changed" in message for message in result.warnings)
+    assert result.status == "blocked"
+    assert any("cognition.scope-availability.v2" in message and
+               "fake cognition runtime cannot serve this namespace" in message
+               for message in result.errors)
+    assert result.warnings == []
+    scoped = result.data["project_cognition"]["data"]
+    assert scoped["scope_availability"] == {"scope_ready": False, "availability": "unavailable"}
+    assert scoped["graph_consumption"] == "live-read-fallback"
+    assert scoped["advisory_only"] is True
 
 
-def test_preflight_warns_same_lane_implement_when_dirty_scope_overlaps(tmp_path: Path):
+def test_preflight_blocks_legacy_packet_same_lane_implement_when_dirty_scope_overlaps(tmp_path: Path):
     project = _create_project(tmp_path)
     _write_cognition_baseline(project)
     feature_dir = project / "specs" / "001-demo"
@@ -508,12 +514,18 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_overlaps(tmp_path:
         },
     )
 
-    assert result.status == "warn"
-    assert result.errors == []
-    assert any("shared_surface_changed" in message for message in result.warnings)
+    assert result.status == "blocked"
+    assert any("cognition.scope-availability.v2" in message and
+               "fake cognition runtime cannot serve this namespace" in message
+               for message in result.errors)
+    assert result.warnings == []
+    scoped = result.data["project_cognition"]["data"]
+    assert scoped["scope_availability"] == {"scope_ready": False, "availability": "unavailable"}
+    assert scoped["graph_consumption"] == "live-read-fallback"
+    assert scoped["advisory_only"] is True
 
 
-def test_preflight_warns_same_lane_implement_when_dirty_scope_is_shared_config_family(tmp_path: Path):
+def test_preflight_blocks_legacy_packet_same_lane_implement_when_dirty_scope_is_shared_config_family(tmp_path: Path):
     project = _create_project(tmp_path)
     _write_cognition_baseline(project)
     feature_dir = project / "specs" / "001-demo"
@@ -590,12 +602,18 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_is_shared_config_f
         },
     )
 
-    assert result.status == "warn"
-    assert result.errors == []
-    assert any("shared_surface_changed" in message for message in result.warnings)
+    assert result.status == "blocked"
+    assert any("cognition.scope-availability.v2" in message and
+               "fake cognition runtime cannot serve this namespace" in message
+               for message in result.errors)
+    assert result.warnings == []
+    scoped = result.data["project_cognition"]["data"]
+    assert scoped["scope_availability"] == {"scope_ready": False, "availability": "unavailable"}
+    assert scoped["graph_consumption"] == "live-read-fallback"
+    assert scoped["advisory_only"] is True
 
 
-def test_preflight_warns_same_lane_implement_when_dirty_scope_is_workflow_surface_family(tmp_path: Path):
+def test_preflight_blocks_legacy_packet_same_lane_implement_when_dirty_scope_is_workflow_surface_family(tmp_path: Path):
     project = _create_project(tmp_path)
     _write_cognition_baseline(project)
     feature_dir = project / "specs" / "001-demo"
@@ -672,9 +690,15 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_is_workflow_surfac
         },
     )
 
-    assert result.status == "warn"
-    assert result.errors == []
-    assert any("shared_surface_changed" in message for message in result.warnings)
+    assert result.status == "blocked"
+    assert any("cognition.scope-availability.v2" in message and
+               "fake cognition runtime cannot serve this namespace" in message
+               for message in result.errors)
+    assert result.warnings == []
+    scoped = result.data["project_cognition"]["data"]
+    assert scoped["scope_availability"] == {"scope_ready": False, "availability": "unavailable"}
+    assert scoped["graph_consumption"] == "live-read-fallback"
+    assert scoped["advisory_only"] is True
 
 
 def test_preflight_warns_cross_feature_implement_when_dirty_origin_differs(tmp_path: Path):

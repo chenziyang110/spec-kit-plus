@@ -29,7 +29,7 @@ var doIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$`)
 
 func runDo(args []string, stdout io.Writer) int {
 	if len(args) == 0 || args[0] == "--help" || args[0] == "help" {
-		_, _ = fmt.Fprintln(stdout, "usage: specify-runtime do start|record|validate|finish|resume|show [session-id] [--input-json <json|->] [--project-root <root>] [--format json]\nshow --active [--adapter-id <id>] resolves live Do work without choosing latest. show <id> --section definition|definitions|definition:<epoch>|attempts|attempt:<id> expands selected detail. resume accepts evidence-backed typed replan after an observed failure. Commands record native-tool observations; they never execute shell commands.")
+		_, _ = fmt.Fprintln(stdout, "usage: specify-runtime do prepare|start|next|record|validate|finish|complete|resume|show [session-id] [--input-json <json|->] [--project-root <root>] [--format json]\nprepare is read-only; start rechecks and freezes its input. next supplies frozen native-tool packets. complete validates and saves the method without rerunning tools. show --active resolves live Work; --section method|definition|definitions|definition:<epoch>|attempts|attempt:<id>|metrics expands selected detail. resume supports observed failure recovery or explicit unstarted adjustment. Runtime records tool observations; it never executes the operation.")
 		return 0
 	}
 	for _, arg := range args[1:] {
@@ -62,10 +62,11 @@ func runDo(args []string, stdout io.Writer) int {
 	if parsed.option("--section", "") != "" && command != "show" {
 		return doError(stdout, fmt.Errorf("--section is only supported by do show"), "")
 	}
-	if (command == "start" && len(parsed.positionals) != 0) || (command != "start" && active != "true" && len(parsed.positionals) != 1) {
+	initial := command == "start" || command == "prepare"
+	if (initial && len(parsed.positionals) != 0) || (!initial && active != "true" && len(parsed.positionals) != 1) {
 		return doError(stdout, fmt.Errorf("start uses session_id in input; other operations require exactly one session id or show --active"), "")
 	}
-	if (command == "show" || command == "validate") && parsed.option("--input-json", "") != "" {
+	if (command == "show" || command == "validate" || command == "next") && parsed.option("--input-json", "") != "" {
 		return doError(stdout, fmt.Errorf("read-only show and validate do not accept mutation input"), "")
 	}
 	root, err := filepath.Abs(parsed.option("--project-root", "."))
@@ -79,10 +80,10 @@ func runDo(args []string, stdout io.Writer) int {
 	if len(parsed.positionals) == 1 {
 		id = parsed.positionals[0]
 	}
-	if command != "start" && !doIDPattern.MatchString(id) {
+	if !initial && !doIDPattern.MatchString(id) {
 		return doError(stdout, fmt.Errorf("an exact valid session id is required"), "")
 	}
-	if command == "start" {
+	if initial {
 		if id != "" {
 			return doError(stdout, fmt.Errorf("start takes its optional session_id in --input-json"), "")
 		}
@@ -90,11 +91,42 @@ func runDo(args []string, stdout io.Writer) int {
 		if err := doReadInput(parsed.option("--input-json", ""), &input); err != nil {
 			return doError(stdout, err, "")
 		}
+		if command == "prepare" {
+			data, err := doPrepare(root, input)
+			if err != nil {
+				return doError(stdout, err, input.SessionID)
+			}
+			env := NewEnvelope("ok", "operation inputs prepared; no session or Work created")
+			env.Data = data
+			return writeEnvelope(stdout, env)
+		}
 		session, err := doStart(root, input)
 		if err != nil {
 			return doError(stdout, err, input.SessionID)
 		}
 		return doSessionEnvelope(stdout, session, "operation plan frozen; execute only through authorized native tools", nil)
+	}
+	if command == "next" {
+		session, _, err := loadDoSession(root, id)
+		if err != nil {
+			return doError(stdout, err, id)
+		}
+		data, err := doNext(root, session)
+		if err != nil {
+			return doError(stdout, err, id)
+		}
+		return doSessionEnvelope(stdout, session, "next frozen operation packets; record started before calling tools", nil, data)
+	}
+	if command == "complete" {
+		var input doCompleteInput
+		if err := doReadInput(parsed.option("--input-json", ""), &input); err != nil {
+			return doError(stdout, err, id)
+		}
+		session, err := doComplete(root, id, input)
+		if err != nil {
+			return doError(stdout, err, id)
+		}
+		return doSessionEnvelope(stdout, session, "operation and method closeout completed", nil)
 	}
 	if command == "show" || command == "validate" || (command == "resume" && parsed.option("--input-json", "") == "") {
 		session, _, err := loadDoSession(root, id)
@@ -112,6 +144,12 @@ func runDo(args []string, stdout io.Writer) int {
 			}
 			extra := map[string]any{}
 			switch section {
+			case "method":
+				extra["method_definition"] = doMethodDefinition(session)
+				extra["method_digest"] = doMethodDigest(session)
+				extra["parameters"] = session.Parameters
+			case "metrics":
+				extra["metrics"] = doSessionMetrics(session)
 			case "definition":
 				extra["definition"] = session.Definition
 			case "definitions":
@@ -134,7 +172,7 @@ func runDo(args []string, stdout io.Writer) int {
 					break
 				}
 				if !strings.HasPrefix(section, "attempt:") {
-					return doError(stdout, fmt.Errorf("section must be definition, definitions, definition:<epoch>, attempts, or attempt:<id>"), id)
+					return doError(stdout, fmt.Errorf("section must be method, definition, definitions, definition:<epoch>, attempts, attempt:<id>, or metrics"), id)
 				}
 				found := false
 				for _, attempt := range session.Attempts {
@@ -253,6 +291,10 @@ func doSessionEnvelope(stdout io.Writer, session DoSession, summary string, vali
 	env.Data["work_fence"] = session.WorkFence
 	env.Data["definition_digest"] = session.DefinitionDigest
 	env.Data["definition_epoch"] = doCurrentDefinitionEpoch(session)
+	if session.TemplateDefinition != nil {
+		env.Data["method_digest"] = doMethodDigest(session)
+		env.Data["method_argv"] = []string{"specify-runtime", "do", "show", session.ID, "--section", "method", "--format", "json"}
+	}
 	env.Data["definition_argv"] = []string{"specify-runtime", "do", "show", session.ID, "--section", "definition", "--format", "json"}
 	env.Data["definitions_argv"] = []string{"specify-runtime", "do", "show", session.ID, "--section", "definitions", "--format", "json"}
 	env.Data["attempts_argv"] = []string{"specify-runtime", "do", "show", session.ID, "--section", "attempts", "--format", "json"}
@@ -270,7 +312,7 @@ func doSessionEnvelope(stdout io.Writer, session DoSession, summary string, vali
 		}
 	}
 	if !terminal {
-		env.NextArgv = []string{"specify-runtime", "do", "resume", session.ID, "--format", "json"}
+		env.NextArgv = []string{"specify-runtime", "do", "next", session.ID, "--format", "json"}
 	}
 	for _, fields := range extra {
 		for key, value := range fields {
@@ -340,7 +382,7 @@ func loadDoSession(root, id string) (DoSession, string, error) {
 	if !doIDPattern.MatchString(id) {
 		return session, "", fmt.Errorf("invalid session id")
 	}
-	raw, err := secureProjectReadFile(root, doSessionRef(id))
+	raw, err := doReadCheckpoint(root, doSessionRef(id))
 	if err != nil {
 		return session, "", err
 	}
@@ -350,7 +392,7 @@ func loadDoSession(root, id string) (DoSession, string, error) {
 	if err = json.Unmarshal(raw, &session); err != nil {
 		return session, "", err
 	}
-	if session.SchemaVersion != doSessionSchema || session.ID != id || session.Revision < 1 {
+	if (session.SchemaVersion != doSessionSchema && session.SchemaVersion != doLegacySessionSchema) || session.ID != id || session.Revision < 1 {
 		return session, "", fmt.Errorf("invalid session identity or schema")
 	}
 	digest, err := playbookDefinitionDigest(session.Definition)
@@ -358,6 +400,27 @@ func loadDoSession(root, id string) (DoSession, string, error) {
 		return session, "", fmt.Errorf("frozen operation definition was changed")
 	}
 	if err := doValidateDefinitionHistory(root, session); err != nil {
+		return session, "", err
+	}
+	if err := doVerifyInstanceBinding(root, session); err != nil {
+		return session, "", err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return session, "", err
+	}
+	if session.SchemaVersion == doSessionSchema {
+		if _, inline := fields["baseline_json"]; inline {
+			return session, "", fmt.Errorf("referenced workspace baseline cannot also be stored inline")
+		}
+	} else {
+		_, referenced := fields["baseline_ref"]
+		_, bound := fields["baseline_sha256"]
+		if referenced || bound {
+			return session, "", fmt.Errorf("legacy session cannot carry a workspace baseline reference")
+		}
+	}
+	if err := doHydrateBaseline(root, &session); err != nil {
 		return session, "", err
 	}
 	if session.Requests == nil {
@@ -385,19 +448,42 @@ func doWriteSession(root string, session DoSession, expected string, extra []fil
 	if err != nil {
 		return err
 	}
-	raw, err := json.MarshalIndent(session, "", "  ")
+	raw, err := doSerializeSession(session)
 	if err != nil {
 		return err
 	}
-	if len(raw)+1 > doSessionSizeLimit {
-		return fmt.Errorf("session checkpoint exceeds 8 MiB; preserve the last readable checkpoint and split the operation")
-	}
-	updates := append(extra, fileTransactionUpdate{Path: target, Content: append(raw, '\n'), Perm: 0o600})
+	updates := append([]fileTransactionUpdate{}, extra...)
+	updates = append(updates, fileTransactionUpdate{Path: target, Content: raw, Perm: 0o600})
 	conditions := []fileTransactionPrecondition{{Path: target, ExpectedSHA256: expected, MustNotExist: expected == ""}}
 	for _, update := range extra {
 		conditions = append(conditions, fileTransactionPrecondition{Path: update.Path, MustNotExist: true})
 	}
-	_, err = applyFileTransactionWithPreconditions(root, "do-session", updates, conditions)
+	var verify func() error
+	if session.SchemaVersion == doSessionSchema {
+		baselineTarget, err := secureProjectPath(root, session.BaselineRef)
+		if err != nil {
+			return err
+		}
+		if expected == "" {
+			updates = append(updates, fileTransactionUpdate{Path: baselineTarget, Content: []byte(session.BaselineJSON), Perm: 0o600})
+			conditions = append(conditions, fileTransactionPrecondition{Path: baselineTarget, MustNotExist: true})
+		} else {
+			// Never rewrite the sidecar. Its bounded digest check is a CAS
+			// prerequisite under the same transaction lock as session.json.
+			// Avoid generic file preconditions, which read without a size bound.
+			verify = func() error {
+				raw, err := doReadBaseline(root, session.BaselineRef)
+				if err != nil {
+					return err
+				}
+				if doBytesDigest(raw) != session.BaselineSHA256 {
+					return fmt.Errorf("immutable workspace baseline digest mismatch")
+				}
+				return nil
+			}
+		}
+	}
+	_, err = applyFileTransactionWithVerification(root, "do-session", updates, conditions, verify)
 	return err
 }
 
@@ -472,6 +558,13 @@ func doStart(root string, input doStartInput) (DoSession, error) {
 		return empty, err
 	}
 	input.Definition = playbookNormalizeDefinition(input.Definition)
+	template := input.Definition
+	resolved, parameters, err := resolvePlaybookDefinition(root, template, input.Parameters)
+	if err != nil {
+		return empty, err
+	}
+	input.Definition = resolved
+	input.Parameters = parameters
 	if input.MethodBinding != nil && input.MethodBinding.ID != playbookID(input.Definition) {
 		return empty, fmt.Errorf("method binding belongs to a different operation identity")
 	}
@@ -506,7 +599,11 @@ func doStart(root string, input doStartInput) (DoSession, error) {
 			return empty, readErr
 		}
 		requestedDigest, digestErr := playbookDefinitionDigest(input.Definition)
-		if digestErr != nil || existing.DefinitionDigest != requestedDigest || existing.Goal != input.Goal || !reflect.DeepEqual(existing.MethodBinding, input.MethodBinding) || !reflect.DeepEqual(uniqueSortedTrimmed(existing.WriteScope), uniqueSortedTrimmed(input.WriteScope)) || !reflect.DeepEqual(uniqueSortedTrimmed(existing.OutputScope), uniqueSortedTrimmed(input.OutputScope)) || !reflect.DeepEqual(existing.Context, input.Context) {
+		requestedTemplateDigest, _ := playbookDefinitionDigest(template)
+		if doMethodDigest(existing) != requestedTemplateDigest {
+			return empty, fmt.Errorf("session_id already binds a different method template")
+		}
+		if digestErr != nil || existing.DefinitionDigest != requestedDigest || existing.Goal != input.Goal || !reflect.DeepEqual(existing.Parameters, input.Parameters) || !reflect.DeepEqual(existing.MethodBinding, input.MethodBinding) || !reflect.DeepEqual(uniqueSortedTrimmed(existing.WriteScope), uniqueSortedTrimmed(input.WriteScope)) || !reflect.DeepEqual(uniqueSortedTrimmed(existing.OutputScope), uniqueSortedTrimmed(input.OutputScope)) || !reflect.DeepEqual(existing.Context, input.Context) {
 			return empty, fmt.Errorf("session_id already binds a different operation; resume it or choose a new id")
 		}
 		view, viewErr := runcontrol.OpenViewForRepository(context.Background(), root)
@@ -556,6 +653,31 @@ func doStart(root string, input doStartInput) (DoSession, error) {
 	if err != nil {
 		return empty, err
 	}
+	now := doNow()
+	session := DoSession{SchemaVersion: doSessionSchema, ID: id, Revision: 1, Goal: input.Goal, Definition: input.Definition, DefinitionDigest: digest, MethodBinding: input.MethodBinding, Context: input.Context, InitialSources: sources, BaselineJSON: baselineJSON, BaselineRef: doBaselineRef(id), BaselineSHA256: doBytesDigest([]byte(baselineJSON)), WriteScope: input.WriteScope, OutputScope: input.OutputScope, WorkID: "work-" + id, WorkFence: 1, ExecutionOutcome: "pending", KnowledgeStatus: "pending", Attempts: []DoAttempt{}, Requests: map[string]string{}, CreatedAt: now, UpdatedAt: now}
+	if len(template.Parameters) > 0 {
+		session.TemplateDefinition = &template
+		session.TemplateDigest, _ = playbookDefinitionDigest(template)
+		session.Parameters = parameters
+	}
+	doInitializeDefinitionEpoch(&session, sources, fingerprint, sourceRevision, dirty)
+	// The deterministic checkpoint and baseline safety limits must pass before
+	// registration can leave an active Work claim with no readable session.
+	if _, err := doSerializeSession(session); err != nil {
+		return empty, err
+	}
+	if _, err := secureProjectPath(root, doSessionRef(id)); err != nil {
+		return empty, err
+	}
+	baselineTarget, err := secureProjectPath(root, session.BaselineRef)
+	if err != nil {
+		return empty, err
+	}
+	if _, err := os.Lstat(baselineTarget); err == nil {
+		return empty, fmt.Errorf("immutable workspace baseline already exists without its session; inspect transaction recovery before retrying")
+	} else if !os.IsNotExist(err) {
+		return empty, err
+	}
 	workScope := append(append([]string{}, input.WriteScope...), input.OutputScope...)
 	workScope = append(workScope, path.Dir(doSessionRef(id)))
 	intents := []runcontrol.WriteIntentSpec{}
@@ -578,9 +700,7 @@ func doStart(root string, input doStartInput) (DoSession, error) {
 	if err != nil {
 		return empty, err
 	}
-	now := doNow()
-	session := DoSession{SchemaVersion: doSessionSchema, ID: id, Revision: 1, Goal: input.Goal, Definition: input.Definition, DefinitionDigest: digest, MethodBinding: input.MethodBinding, Context: input.Context, InitialSources: sources, BaselineJSON: baselineJSON, WriteScope: input.WriteScope, OutputScope: input.OutputScope, WorkID: work.WorkID, WorkFence: work.Fence, ExecutionOutcome: "pending", KnowledgeStatus: "pending", Attempts: []DoAttempt{}, Requests: map[string]string{}, CreatedAt: now, UpdatedAt: now}
-	doInitializeDefinitionEpoch(&session, sources, fingerprint, sourceRevision, dirty)
+	session.WorkID, session.WorkFence = work.WorkID, work.Fence
 	if err = doWriteSession(root, session, "", nil); err != nil {
 		return empty, fmt.Errorf("session publication failed; Work %s preserves its scope, inspect before recovery: %w", work.WorkID, err)
 	}
@@ -729,6 +849,9 @@ func doRecord(root string, session DoSession, oldDigest string, input doRecordIn
 }
 
 func doResume(root string, session DoSession, oldDigest string, input doResumeInput) (DoSession, error) {
+	if input.ExternalChanges != nil {
+		return doResumeExternalChanges(root, session, oldDigest, input)
+	}
 	if input.Replan != nil {
 		return doReplan(root, session, oldDigest, input)
 	}
@@ -904,7 +1027,7 @@ func doVerifyKnowledge(root string, session DoSession, receipt DoKnowledgeReceip
 	_ = json.Unmarshal(data["definition_digest"], &digest)
 	_ = json.Unmarshal(data["method_id"], &method)
 	_ = json.Unmarshal(data["revision"], &revision)
-	if sid != session.ID || digest != session.DefinitionDigest || method != receipt.MethodID || revision != receipt.Revision {
+	if sid != session.ID || digest != doMethodDigest(session) || method != receipt.MethodID || revision != receipt.Revision {
 		return fmt.Errorf("knowledge receipt is not bound to this execution and method revision")
 	}
 	document, err := loadPlaybookRevision(root, receipt.MethodID, receipt.Revision)
@@ -912,12 +1035,15 @@ func doVerifyKnowledge(root string, session DoSession, receipt DoKnowledgeReceip
 		return err
 	}
 	definitionDigest, err := playbookDefinitionDigest(document.Definition)
-	if err != nil || document.Revision != receipt.Revision || definitionDigest != session.DefinitionDigest {
+	if err != nil || document.Revision != receipt.Revision || definitionDigest != doMethodDigest(session) {
 		return fmt.Errorf("knowledge receipt no longer binds the published definition")
 	}
 	var verification DoPlaybookValidationReceipt
-	if err := json.Unmarshal(data["verification"], &verification); err != nil || session.Validation == nil || verification.SessionID != session.ID || verification.EvidenceDigest != session.Validation.EvidenceDigest || verification.SourceFingerprint != session.Validation.SourceFingerprint || verification.DefinitionDigest != session.DefinitionDigest || verification.Outcome != "passed" {
+	if err := json.Unmarshal(data["verification"], &verification); err != nil || session.Validation == nil || verification.SessionID != session.ID || verification.EvidenceDigest != session.Validation.EvidenceDigest || verification.SourceFingerprint != session.Validation.SourceFingerprint || verification.DefinitionDigest != doMethodDigest(session) || verification.Outcome != "passed" {
 		return fmt.Errorf("knowledge verification does not match the finished operation")
+	}
+	if session.TemplateDefinition != nil && (verification.InstanceDigest != session.DefinitionDigest || !reflect.DeepEqual(verification.Parameters, session.Parameters)) {
+		return fmt.Errorf("knowledge verification instance parameters mismatch")
 	}
 	return nil
 }
@@ -931,7 +1057,10 @@ func validateDoSessionForPlaybook(root, sessionID, methodID string, baseRevision
 	if session.ExecutionOutcome != "passed" || session.Validation == nil {
 		return result, fmt.Errorf("method publication requires execution-passed Do finish, not a supplied pass flag")
 	}
-	if session.DefinitionDigest != definitionDigest {
+	if err := doVerifyInstanceBinding(root, session); err != nil {
+		return result, err
+	}
+	if doMethodDigest(session) != definitionDigest {
 		return result, fmt.Errorf("session did not execute the exact proposed definition")
 	}
 	if session.MethodBinding == nil {
@@ -948,11 +1077,14 @@ func validateDoSessionForPlaybook(root, sessionID, methodID string, baseRevision
 	if validation.EvidenceDigest != session.Validation.EvidenceDigest || validation.SourceFingerprint != session.Validation.SourceFingerprint {
 		return result, fmt.Errorf("session verification receipt changed")
 	}
-	sources, err := playbookSourceFingerprint(root, session.Definition)
+	sources, err := playbookSourceFingerprint(root, doMethodDefinition(session))
 	if err != nil {
 		return result, err
 	}
 	result = DoPlaybookValidationReceipt{SessionID: sessionID, MethodID: methodID, BaseRevision: baseRevision, BaseDigest: baseDigest, DefinitionDigest: definitionDigest, SourceFingerprint: validation.SourceFingerprint, Sources: sources, EvidenceDigest: validation.EvidenceDigest, Outcome: "passed", VerifiedAt: validation.VerifiedAt}
+	if session.TemplateDefinition != nil {
+		result.InstanceDigest, result.Parameters = session.DefinitionDigest, session.Parameters
+	}
 	return result, nil
 }
 
@@ -1071,7 +1203,11 @@ func doOwnerMetadataPath(owner, p string) bool {
 		if path.Base(p) == mutationCognitionReceiptFileName {
 			return true // exact replay scope computed from a validated existing intent
 		}
-		return path.Dir(p) == ".specify/project-cognition/closeout-intents" && strings.HasSuffix(p, ".json") && validCloseoutIntentID(strings.TrimSuffix(path.Base(p), ".json"))
+		if path.Dir(p) == ".specify/project-cognition/closeout-intents" && strings.HasSuffix(p, ".json") && validCloseoutIntentID(strings.TrimSuffix(path.Base(p), ".json")) {
+			return true
+		}
+		parts := strings.Split(p, "/")
+		return len(parts) >= 5 && parts[0] == ".specify" && parts[1] == "project-cognition" && parts[2] == "delta-sessions" && strings.HasPrefix(parts[3], "delta-") && (parts[4] == "session.json" || (len(parts) == 6 && parts[4] == "events" && strings.HasSuffix(parts[5], ".json")))
 	}
 	if owner == "playbook-proposal" {
 		parts := strings.Split(p, "/")

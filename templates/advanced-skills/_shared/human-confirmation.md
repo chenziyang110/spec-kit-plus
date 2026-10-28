@@ -1,8 +1,11 @@
 # Human confirmation
 
-Use one human-facing confirmation before substantive Quick execution or Debug
-investigation. Confirm only user-owned product facts, scope, risk, and
-authority. Keep technical sequencing and hypotheses in agent-owned state.
+For Quick, understand the request and explore bounded current-state evidence,
+then use one human-facing confirmation of the concrete change before
+implementation. For
+Debug, investigate evidence first and confirm the concrete repair before
+mutation. Confirm user-owned product facts, scope, risk, and authority; causal
+proof, technical sequencing, and hypotheses remain agent-owned.
 
 The human surface uses short headings and bullets rather than dense tables. The
 machine contract stays complete: concise rendering must not remove a decision
@@ -13,6 +16,23 @@ details.
 
 Do not hand-author freeform prose or a partial field list. Stage a
 `quick-confirmation-v1` contract and render the runtime Quick Delivery Checkpoint.
+For a new raw request, populate meaningful `decision.current_state_evidence`,
+`recommended_approach`, `assumptions_and_risks` and `completion_evidence` before
+staging. State current findings and selected source/check basis, concrete change
+and reason, affected behavior and risks, expected result and verification.
+Greenfield absence or uncertainty is explicit; do not invent a bug cause.
+For a newly gathered raw request, inspect the staged response's
+`confirmation.decision.current_state_evidence` and `views.decision`; require
+the complete selected basis in the typed field and readable default human view.
+For material amendments, retain supplied `current_state_evidence` in the
+returned typed decision and its digest; show that basis in the human delta view
+only when `current_state_evidence` is named in `source.changed_decision_fields`.
+Otherwise omit the unchanged basis from the delta view. A missing supplied
+field or basis missing where it should be visible can mean an incompatible old
+runtime silently dropped it. Restore or update the pinned compatible runtime
+and re-stage before asking for approval or confirming/executing. Exact
+unchanged approved or inherited legacy decisions need no new-field backfill
+or duplicate confirmation.
 
 ### Runtime owner
 
@@ -38,11 +58,13 @@ read it from the runtime envelope when calling `checkpoint-confirm`.
 
 ### Decision Checkpoint only confirms
 
+- the concrete proposal grounded in current findings and their evidence basis
 - goal and user-visible result
 - include / exclude / defer scope
 - stable `Q1`/`Q2`/... deliverables
 - product-level dependencies and per-item acceptance
 - risk and authority decisions
+- recommended change, assumptions/impact and overall completion evidence
 - UI goals/boundaries when applicable
 - reconfirmation trigger
 
@@ -73,6 +95,10 @@ and independent acceptance criterion visible as readable bullets.
 
 [goal]
 
+### 当前情况与依据
+
+- [current findings and selected source/check refs, or checked absence/unknown]
+
 ### 你会看到
 
 - [user-visible result]
@@ -97,6 +123,12 @@ and independent acceptance criterion visible as readable bullets.
   - 验收：[per-item acceptance]
   - 前置：Q1
 
+### 方案与完成标准
+
+- **推荐路径**：[concrete change, reason and expected effect]
+- **假设或风险**：[affected behavior, compatibility/authority and uncertainty]
+- **完成证据**：[observable result and regression verification]
+
 ### 需要重新确认的情况
 
 - [reconfirmation trigger]
@@ -113,52 +145,91 @@ Reply with `confirm`/`确认` after a staged Decision Checkpoint and any applica
 UI direction, or use a precise correction such as `修改 Q3 验收 ...`,
 `revise: scope ...`, `revise: order ...`, or `revise: UI ...`.
 
+Before approval, targeted existing source/log/test/UI reads, safe bounded
+checks and read-only evidence workers can prepare this decision. They authorize
+no product/test/harness write, persistent instrumentation, Q-item start or
+implementation dispatch. Only a real human reply approving the exact staged
+proposal followed by `checkpoint-confirm --digest`, or validated unchanged
+inheritance, authorizes implementation under its original Q/Work gates.
+A generic request, Auto recommendation or hand-patched confirmation boolean
+cannot substitute. Reuse exact approved decisions without another confirmation
+or new-field backfill; material proposal, selected-basis, scope or risk changes
+use reason-first delta confirmation, while agent choreography stays agent-owned.
+
 ## Debug card
 
-Use localized headings with the same meanings; technical hypotheses remain
-agent-owned.
+Use this Debug Understanding Checkpoint after bounded diagnosis has established
+a discovered defect, causal evidence, and a concrete repair. There is no early
+mandatory confirmation to inspect existing evidence. Ask for a missing fact
+only when it blocks safe investigation. Use localized headings with the same
+meanings; the user approves the bounded repair, not the technical hypothesis.
 
 ```markdown
 ## Debug Checkpoint
 
 ### 我理解的问题
 
-[user-visible symptom, location, impact, and nearby excluded issue]
+[reported symptom, expected behavior, conditions, impact, and investigation
+boundary/non-goals]
 
-### 应有表现
+### 已发现的问题
 
-[what should happen instead, or the explicit unknown]
+[discovered defect, proven failure mechanism, and decisive evidence in plain
+language; distinguish facts from remaining uncertainty]
 
-### 已知条件
+### 准备怎么修复
 
-- 发生条件：[environment, inputs, sequence, frequency, failing signal, or
-  `Unknown: reason`]
-- 待纠正假设：[reporter assumptions or uncertain facts, or None]
+- 修复：[concrete change and why it prevents the observed failure]
+- 范围：[affected owners/behavior and exact mutation boundary]
+- 修复后：[expected user-visible result]
 
-### 本次调查
+### 影响与验证
 
-- 包含：[investigation boundary]
-- 不包含：[non-goals]
-
-### 修复授权
-
-[Diagnose only, or diagnose and fix after causal evidence; include mutation
-boundaries]
+- 影响与风险：[compatibility, side effects, data/consumer risks, or evidence-backed
+  absence of material risk]
+- 验证：[original reproduction, automated RED/regression, related risks, and
+  applicable real-entrypoint/UI review]
+- 授权：[approve this repair, or diagnose only]
 
 ### 需要重新确认的情况
 
-[new defect, boundary, authority, compatibility, migration, side effect, or
-material risk]
+[material change to discovered defect/root cause, repair, boundary, expected
+result, authority, UI target, compatibility, migration, side effect, or risk]
 ```
 
-Technical hypotheses belong to the agent. The first evidence action, fix gate,
-and progress signal may follow for awareness, not as a request to approve a
-hypothesis.
+Persist the exact approved decision payload in `checkpoint` with
+`confirmation_purpose: evidence-backed-repair`, `discovered_problem`,
+`root_cause`, decisive `evidence_refs`, `proposed_fix`, `change_scope`,
+`expected_outcome`, `risks`, and `validation_plan`, reporter facts/boundaries,
+and any applicable UI decision. Compute `confirmation_digest` as SHA-256 of
+canonical JSON with sorted keys, stable array order, and UTF-8, excluding both
+`checkpoint.confirmation_digest` and applicable
+`ui_confirmation.confirmation_digest` self-fields, plus mutable agent plan/full
+evidence log. Persist confirmation only
+after the user's reply. On resume, require this concrete payload, purpose, and
+matching digest; legacy/generic `understanding_confirmed: true` is insufficient
+repair authority. These are agent-owned bindings, not runtime authentication.
+
+Before approval, block product/test/harness changes, persistent instrumentation,
+and fix-worker dispatch. If evidence is impossible without bounded diagnostic
+changes, use `confirmation_purpose: diagnostic-enablement` in this same card:
+explain the observed evidence gap and unknown root cause, precise diagnostic
+work, bounds, risks, verification, and cleanup. It approves only that diagnostic
+work; return to investigation afterward and obtain `evidence-backed-repair`
+approval before product repair. A diagnose-only response never permits a fix.
+
+Material cause/repair/scope/risk/UI changes invalidate approval and require only
+a reason-first `## Debug Checkpoint Amendment` with changed decisions and an
+`Unchanged` statement. Keep the complete approved payload and new digest in
+state; safe bounded diagnosis may continue while repair mutations wait. New
+raw evidence or agent hypotheses alone do not require duplicate confirmation
+when the approved causal finding and repair remain intact.
 
 Keep the checkpoint plain text for terminal output: use Markdown without HTML
 tags or inline line-break markup.
 
-Reply with `confirm`/`确认` after the Debug card and any applicable UI direction,
+Reply with `confirm`/`确认` to approve the displayed repair (or explicitly named
+diagnostic-only work) after the Debug card and any applicable UI direction,
 or use `revise: scope ...`, `revise: UI ...`, or another precise correction.
 
 ## UI Confirmation
@@ -167,8 +238,10 @@ Keep UI Confirmation independent in machine state but render it inside the same
 human checkpoint as one `界面方向` section. Use it only for a user-visible
 screen, component, layout, interaction flow, visual state, responsive behavior,
 accessibility presentation, TUI layout, or CLI presentation. Quick uses an
-implementation proposal; Debug uses a target baseline and must not pre-approve
-a speculative repair.
+implementation proposal. Debug investigates against a provisional
+existing/source-backed target, then confirms the formal repair target baseline
+alongside the evidence-backed repair; it must not pre-approve a speculative
+repair or redesign.
 
 Do not present it when the basis is only an unregistered draft or legacy
 bootstrap seed, or when a new/high-visibility direction lacks an inspectable

@@ -26,6 +26,29 @@ only needed `steps`, `checks`, `evidence`, or the complete selected definition
 when freezing requires it. Preserve exact ID, revision, and content digest.
 Do not rank title resemblance above incompatible prerequisites or source drift.
 
+Keep default relevance retrieval unless comparable observations help choose a
+route. `--rank observed` scans sessions and compares first-pass reliability
+before tool cost only within equal relevance and equivalent task, actual
+parameters, environment, sources and checks. Supply complete observed context
+and `--parameters-json`; insufficient history does not establish a best method.
+Read `playbook metrics --id <id>` or `do show <id> --section metrics` only for
+needed detail. Outcomes include failures, interruptions and blocks; retained
+attempts are not new executions, and successful usage is not the denominator.
+
+Declare reusable nonsecret inputs in typed `parameters`, bind actual strings
+in start's `parameters`, and use `{{param:name}}` only in supported value fields.
+For process argv it must be a whole non-executable argument, never shell code.
+Keep write/output scopes concrete after expansion. Stable `task_family` groups
+related methods; a parameter change binds a new instance without revising the
+template. Runtime preserves both digests. Manual publication uses
+`method_definition` from `do show --section method`, not the expanded instance.
+
+For a matching failure, `playbook show --id <id> --section recovery` provides bound
+discriminators, failed/verified action differences and observed preflight
+candidates. Compare current signals and context; candidates prove neither
+prevention nor root cause. Validate a chosen preflight in the current frozen
+method before publishing it. Invalidated evidence remains excluded.
+
 A `status=proposed` card is a first-use candidate, not verified history. Expand
 its pinned proposal, check the live prerequisites, and freeze a new DoSession
 without `method_binding`; revision zero is not a canonical verified revision.
@@ -33,8 +56,11 @@ For verified cards retain the exact returned revision even if current changes
 concurrently. A proposal cannot silently replace the verified route.
 An optional `pending_proposal` in a verified summary is tied to that exact base.
 Read its pinned `show_argv` only when considering the improvement, then freeze
-and execute the changed definition without borrowing the old method binding
-or its success. It does not replace the verified current body.
+the changed template and actual parameter bindings while retaining the exact
+verified base ID/revision/content digest in `method_binding`. This binds the
+publication compare-and-swap base; it conveys no success for the changed
+instance. Verify the candidate in the current session. A stale base requires
+explicit reconciliation and cannot silently retarget to a concurrent revision.
 
 Reinspect referenced scripts before native execution, including their side
 effects. Keep a bounded authorized source write scope separate from output
@@ -47,10 +73,13 @@ larger feature or replace Review and human Accept.
 
 ## Runtime-Owned Session, Native Execution
 
-Read `api show do.start` and its returned schema when the input contract is not
-already known. `do start --input-json <json|->` freezes the goal, definition,
+Read `api show do.prepare` and its schema when needed. Read-only `do prepare`
+validates the goal, template, actual parameters,
 optional selected method binding, observed context, relevant source files,
-write/output scopes, and actual agent/adapter identity. Use runtime-returned
+write/output scopes, and actual agent/adapter identity. Send returned canonical
+`start_input` to its `start_argv`; `do start` rechecks live conditions before
+freezing the session. Prepared method/instance/source digests are not execution
+or authority. Use runtime-returned
 session ID, revision, Work fence, definition/source digests, and next argv.
 `.specify/do/sessions/<id>` is the sole runtime-owned session location. Do not
 author its JSON, invent integrity fields, add an Activity/formal feature, or
@@ -70,7 +99,8 @@ must verify the final source basis, so rerun those completed before a later
 source mutation. Runtime validation rehashes current result paths rather than
 accepting a historical output snapshot.
 
-Use `do-start-input`, `do-record-input`, `do-finish-input`, and `do-resume-input`
+Use `do-prepare-input`, `do-start-input`, `do-record-input`, `do-complete-input`,
+`do-finish-input`, and `do-resume-input`
 from API discovery. Start is idempotent only for an explicit session ID and the
 identical frozen input. Record has a top-level `request_id`; finish/resume use
 `expected_revision` and state-based idempotency. Replanning adds only its typed
@@ -92,15 +122,25 @@ its explicit new `work_fence` with fresh `recovery` evidence to DO. The runtime
 checks active identity, workspace, and fence; it does not seize or resume Work
 implicitly. Fence alignment does not clear an interrupted attempt by itself.
 
-Use native process tools for execution and maintain their handles through real
-completion. Runtime DO records observations; it is not a shell runner or
-independent proof of the agent's tool use. Through `do record`, write each
-`started` event before its step/check and the observed `completed` event after
-it. Use the current expected revision and stable idempotency request/attempt
-IDs; re-read and reconcile on conflicts. Record real tool-call provenance,
-argv/cwd, timestamps, result/exit status, sanitized summary, and existing result
-references. Do not invent tool IDs, backfill imagined results, erase failed
-attempts, or reuse stale reports.
+Use `do next <id>` to retrieve ready full frozen `action` values, `started_input`,
+`completion_event` and `completion_required`. Record started before the native
+action; fill the completion only from actual observations and submit it in
+`do-record-input.events` with fresh revision and unique request ID. Refresh next
+after each checkpoint: ready skeletons share one revision. Observe/reconcile
+`running` attempts instead of replaying them. Direct schema-based `do record`
+remains available. Runtime does not execute or attest unseen tool calls.
+
+Process actions preserve handles through completion and record argv/cwd, exit
+status and result refs. Other actions use `native_action` with kind
+`file|browser|desktop|connector`, tool, target and JSON arguments, without
+argv/cwd/script_ref. Record actual `native_observation.outcome` and sanitized
+JSON `result`; runtime owns its snapshot and digest. Required native mutations
+need a dependent required observation/file/JSON/JUnit effect check with its own
+fresh call after the exact producer. An observation check applies its frozen
+JSON pointer/expected value. A successful mutation response alone is not an
+effect check; a remote observation remains evidence as of its recorded time.
+Never invent process fields for another tool, fabricate observations, erase
+failures or reuse stale reports.
 
 Freeze required checks before execution. Check actual promised outputs as well
 as process exit: file presence/content, JSON fields, JUnit outcomes, package
@@ -120,13 +160,15 @@ frozen required dependency needs its result.
 
 For ordinary recovery, failed-method replan and blocker resolution through
 `do resume`, read `do-resume-input`. Supply a concrete nonempty `recovery.reason`,
-`processes_stopped=true`, `side_effects_inspected=true` and exactly one of:
+`side_effects_inspected=true`, and `processes_stopped=true` for process attempts
+or `native_action_settled=true` for nonprocess actions; mixed-operation recovery
+requires both. Provide exactly one of:
 
 - `evidence_ref`: an existing sanitized file within the already declared
   `write_scope` or `output_scope`; a replan's new claims do not authorize
   prewriting it.
 - `evidence_text`: a nonempty sanitized UTF-8 record, at most 64 KiB in bytes,
-  of native process termination and actual side-effect inspection. Runtime
+  of process termination or native action settlement and actual side-effect inspection. Runtime
   persists it atomically with recovery and the session revision check in the
   session's existing Work-owned `evidence/` directory. Do not prewrite or
   hand-edit that directory; this grants no source/output permissions and does
@@ -144,33 +186,77 @@ session values and native observations in this illustrative payload:
 For a known failed method that needs changed argv or a helper, use typed
 `do resume` replanning rather than editing session storage. Read `do-resume-input`;
 supply `expected_revision`, the latest unresolved genuinely failed current-epoch
-`attempt_id`, and `recovery` in either form above, with reason, stopped processes
-and inspected side effects. Its `replan` object carries `request_id` and the full
+`attempt_id`, and `recovery` in either form above, with reason, the applicable
+process/action settlement confirmation and inspected side effects.
+Its `replan` object carries `request_id` and the full
 changed `definition`; optional complete `write_scope`/`output_scope` lists may extend but
 cannot shrink or exchange source/output ownership. Goal, stable method ID and
 observed context stay bound. Unknown/running/interrupted effects require their
 own recovery first; passed execution with knowledge pending cannot be replanned.
 
-The runtime retains old definitions and attempts and starts a new
-`definition_epoch` in the same session. Execute every required step/check anew;
-old passing evidence cannot satisfy the new epoch, and repair cannot weaken the
-requested verification denominator. Returning to the same earlier definition
-digest still requires new evidence. Claim any new helper path through replan
+The runtime preserves definitions/attempts and starts a new `definition_epoch`.
+Default failed replanning needs fresh required execution. To refine actions
+before they start, use `replan.mode="unstarted"`, omit `attempt_id` and `recovery`,
+and change only unattempted actions; never invent a failure. Active/unknown
+effects still need their own recovery.
+
+Either mode can explicitly set `retain_verified=true`. Original process
+read/local-write observations can carry through an unbroken immutable epoch
+chain only while complete actions, source basis, exact prerequisite attempt IDs,
+outputs and evidence remain unchanged at every hop. Changed inputs/scripts,
+newer failures or a missing hop invalidate reuse; native/external actions and
+source writers never carry. New checks execute. Preserve the original attempt,
+epoch and timing; artifact revalidation is not a new compile/package execution.
+Do not change a build action into an instance-only artifact check to publish it
+as a verified from-scratch method.
+Claim any new helper path through replan
 before writing it, then execute a frozen creation step with `source_writes`.
 Bind `script_ref` only to an existing file. Any helper already created must have
 been inside the original authorized scope; preserve all accumulated source
 deltas for cognition closeout. Re-read compact `do show` and expand the current
 definition or affected attempts before continuing.
 
+## Bound Inputs and Concurrent Differences
+
+Require `do.scoped-recovery.v1`. Use a maintained static script and `script_ref`;
+recognizable script-file argv inputs are also captured relative to cwd. Declare
+all build/config/resource dependencies through `source_files`; AGENTS-only is
+not a complete input basis. Do not put executable script bodies in environment
+variables. Environment bindings carry secrets, while normal public paths and
+PowerShell preferences remain valid. Sensitive errors expose a pointer/rule,
+not the rejected value. Script drift requires replan or fresh verification.
+Preflight dependency/include/resource/font/SDK/config/tool availability, exact
+PowerShell 5/7 context and peak free space across mirror/build/staging/archive/
+extraction volumes before heavy work. Keep native process handles separate from
+orchestration cell IDs; poll running handles and parse only completed output.
+
+For inspected unrelated unclaimed changes, `do resume` accepts
+`external_changes:{"paths":["exact/path"]}`, current `expected_revision` and
+typed `recovery` evidence, without `attempt_id`/`replan`. Runtime snapshots
+current bytes and binds epoch/definition/source/evidence; changed bytes require
+new inspection. It neither claims another Work nor changes the baseline or
+write scope. Consumed inputs, historical reads, own writes/outputs and metadata
+cannot be excluded, even if another Work owns them. An existing blocker still
+needs ordinary fresh-evidence `do resume` after the inspection. Changed shared
+inputs need revalidation or a genuinely bound captured snapshot, never a prose
+claim that they are unrelated. Old environment payloads and unexecuted methods
+do not acquire verification retroactively.
+
 ## Execution and Knowledge Closeout
 
 `do validate <id>` is read-only fresh verification. `ready_to_finish` means the
 execution may be finalized, not that DO is terminal. Use `api show do.finish`
 and the returned next actions to record execution outcome separately from
-knowledge status. Only fresh validation and `do show <id>` returning
-`data.terminal=true` authorize a completion claim. Execution passed with
+knowledge status. Only fresh validation and `data.terminal=true` from
+complete/finish or a fresh `do show <id>` authorize a completion claim. Execution passed with
 knowledge pending resumes the missing persistence step without rerunning the
-successful operation.
+successful operation. The ordinary short path is `do next` followed by its
+`complete_argv`, adding a truthful `change_summary` to `complete_input`.
+`do complete` uses the existing finish-pending, exact-template publication and
+finish-saved owners; it does not execute tools or bypass any verification or
+source-closeout gate. Publication failure leaves execution passed/knowledge
+pending: reread the revision and retry complete without repeating the operation.
+Use the manual path below for Learning, proposals or not-applicable knowledge.
 
 For retained source, script, test, or configuration changes, complete canonical
 `sp-do` cognition closeout using the planner-first route, exact owned paths and
@@ -182,7 +268,8 @@ there is no invented cognition no-op. Entry cognition is advisory and does not
 replace source-mutation closeout.
 
 Read `api show playbook.update` and its schema. Updating a current method uses
-its latest `base_digest`, the exact definition verified in a matching completed
+its latest `base_digest`, the exact `method_definition` template from
+`do show <id> --section method` verified in a matching completed
 DoSession, and a meaningful change summary. Concurrent revisions require live
 reconciliation. Different operation/target/owner/variant identities remain
 separate. Without verified execution, retain only a proposal; it cannot replace
@@ -193,10 +280,10 @@ and set `proposal_only=true`. Runtime metadata scope registration stays guarded;
 omitting the session is not a recovery route. Proposal persistence cannot mark
 execution passed or satisfy the final knowledge disposition.
 
-Finalize in this order: `do finish <id>` with current `expected_revision` and
+For manual publication, finalize in this order: `do finish <id>` with current `expected_revision` and
 `knowledge_status="pending"` records passed execution after all required checks
 and cognition gates; `playbook update` with the matching session and exact
-definition returns `data.knowledge_receipt`; reread `do show <id>` for the latest
+template returns `data.knowledge_receipt`; reread `do show <id>` for the latest
 revision, then `do finish <id>` with that revision, `knowledge_status="saved"`,
 and the complete receipt as `knowledge`. Method persistence can advance the
 session revision while declaring Work metadata scope. Never synthesize the
@@ -211,6 +298,8 @@ constraints belong in Learning using its returned policy; use
 `learning capture-auto --command sp-do --session-id <id>` only for a real
 correction, failure, or improvement. Capture after the first `do finish` with
 knowledge pending and before playbook persistence/final saved disposition.
+After capture, `do complete` may close the pending knowledge from a fresh
+revision; it never captures a lesson automatically.
 Manual `learning capture --command sp-do` also passes `--session-id <id>` so the
 runtime registers exact metadata scope. DO does not fabricate `workflow-state.md`
 or routine lessons merely to prove it ran. Reading never promotes a method or lesson into a
@@ -226,8 +315,10 @@ the typed `blocker` contract: category, owner, cause, attempted recovery, scoped
 actual evidence refs, next action, unblock criteria, and resume point. Keep
 knowledge pending. `can_stop=true` with `terminal=false` means a runtime-accepted
 blocked exit retaining Work ownership, not successful completion. Later
-`do resume` requires fresh resolution evidence in either supported recovery form,
-plus inspected effects and stopped prior processes. This does not change the
+`do resume` requires fresh typed resolution evidence in either supported form
+and `side_effects_inspected=true`. Confirm `processes_stopped=true` for process
+operations or `native_action_settled=true` for nonprocess native operations;
+mixed operations require both. This does not change the
 scoped file-reference contract of `blocker.evidence_refs`; a separate interrupted
 attempt still needs explicit recovery.
 Report the actual operation outcome and verified outputs separately from method

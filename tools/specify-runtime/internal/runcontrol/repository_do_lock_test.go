@@ -79,6 +79,39 @@ func TestWorkspaceBaselineAndDeltaRetainHeldKnowledgeLocksAndCanonicalState(t *t
 	}
 }
 
+func TestWorkspaceDeltaIgnoresPrivateLocksCreatedAfterBaseline(t *testing.T) {
+	for _, relative := range []string{".specify/project-cognition/.update.lock", ".planning/learnings/.learning.lock", ".specify/runtime/locks/playbooks.lock"} {
+		t.Run(filepath.Base(relative), func(t *testing.T) {
+			root, _ := createLinkedRepository(t)
+			baseline, err := CaptureWorkspaceBaseline(context.Background(), root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			encoded, err := EncodeWorkspaceBaseline(baseline)
+			if err != nil {
+				t.Fatal(err)
+			}
+			lockPath := filepath.Join(root, filepath.FromSlash(relative))
+			if err := os.MkdirAll(filepath.Dir(lockPath), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			release, err := filelock.Acquire(lockPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer release()
+			delta, err := InspectWorkspaceDelta(context.Background(), root, encoded)
+			if err != nil || slices.Contains(delta, relative) {
+				t.Fatalf("new private lock entered execution delta: %v %#v", err, delta)
+			}
+			dirty, err := InspectWorkspaceChanges(context.Background(), root)
+			if err != nil || !slices.Contains(dirty, relative) {
+				t.Fatalf("new private lock disappeared from recovery inspection: %v %#v", err, dirty)
+			}
+		})
+	}
+}
+
 func TestDoBaselineLockExclusionRequiresExactOwnerPath(t *testing.T) {
 	for _, relative := range []string{
 		".specify/runtime/receipts/do-locks/fixture.json",

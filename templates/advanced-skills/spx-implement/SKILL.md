@@ -190,6 +190,12 @@ within the current Implement Work, complete verification denominator, validation
 ledger, and acceptance gates. Do not implicitly invoke DO, create another
 Work/DoSession, or substitute method history for fresh evidence.
 
+After accepted source-changing joins, first call
+`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-implement --scope-dir <feature-dir> --scope-mode explicit --intent implement --format json}}`
+with explicit workflow-owned paths, then use its inputs to begin the native work/source binding from
+`references/project-cognition.md` before the existing convergence attempt. Seal
+that exact binding with the fresh verification observations; do not allocate an
+extra logical gate or substitute old worker checks for this final source basis.
 Run the relevant verification as attempts inside one convergence gate for the
 integrated change-set, not once per task. On interruption, repair the runner and
 retry the same fingerprint; on a real failure, repair the implementation and
@@ -198,7 +204,8 @@ preserve the task lifecycle, ledger, and failed fingerprint; enter a bounded
 Debug-grade evidence lane inside Implement, repair the proven owner, and resume
 the interrupted validation gate in the same invocation. Do not invoke another
 user-invoked workflow automatically. Update task status through the task CLI and run
-`specify-runtime implement closeout` to transactionally create the
+the planner-first cognition closeout described below before terminal
+`specify-runtime implement closeout`, which transactionally creates the
 preliminary `implementation-summary.md` and machine-readable
 `implementation-handoff.json` for the later system Review.
 Validate that handoff against the live Spec, Plan, and Tasks. Carry the exact
@@ -273,17 +280,21 @@ stale manifests, and character-substituted assets block acceptance. Missing or b
 `$spx-design` and stop; unavailable comparison remains `pending-human-review`,
 never an implicit pass.
 
-After verified repository changes, call `specify-runtime implement closeout`.
+After verified repository changes, require `cognition.closeout.recovery.v1`
+through the capability check in `references/project-cognition-closeout.md`;
+an older runtime follows its upgrade/recovery action. Use the plan already obtained,
+fill returned agent-owned fields, and execute
+structured `apply_argv` **before** `implement closeout` / `workflow complete-stage`
+(runtime hard gate). Shared apply owns update, validation, eligible finalization,
+and the unique durable receipt; do not stamp a second receipt. An already
+persisted intent must follow returned inspect/repair/replay actions; an input
+failure requires truthful input repair, not dirty fallback. Only when no
+trustworthy intent can be formed may mark-dirty use a standalone dirty receipt.
+Once the receipt allows close, run `specify-runtime implement closeout`.
 It exclusively and atomically writes `implementation-summary.md` and
 `implementation-handoff.json` with the unchanged validation ledger,
 logical-gate count, and attempt history; never author, patch, replace, or
-generically submit those files. Then run
-`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-implement --scope-dir <feature-dir> --scope-mode explicit --intent implement --format json}}`
-with explicit workflow-owned paths, fill returned agent-owned fields, and execute
-structured `apply_argv` **before** `implement closeout` / `workflow complete-stage`
-(runtime hard gate). Shared apply owns update, validation, eligible finalization,
-and receipt; only an update failure uses mark-dirty plus a standalone dirty
-receipt. Apply the gate in
+generically submit those files. Apply the gate in
 `references/project-cognition.md` before any clean claim. Report changed files, checks actually run, failures or skipped
 checks, and residual risk. Ensure closeout prepared a trusted implementation
 handoff, recommend `$spx-review`, and stop. Do not invoke `$spx-accept`

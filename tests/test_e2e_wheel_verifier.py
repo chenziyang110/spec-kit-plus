@@ -12,9 +12,10 @@ import hashlib
 import importlib.util
 import io
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import subprocess
 import sys
+import tomllib
 import warnings
 import zipfile
 
@@ -97,6 +98,7 @@ def test_each_missing_helper_is_a_packaging_failure(source, tmp_path, helper):
     "src/specify_cli/execution/packet_validator.py",
     "tools/specify-runtime/e2e_workflow.go",
     "tools/specify-runtime/e2e_contract.go",
+    "tools/specify-runtime/e2e_views.go",
 ])
 @pytest.mark.parametrize("mutation", ["missing", "stale"])
 def test_runtime_owner_and_compatibility_bridge_are_required(source, tmp_path, source_path, mutation):
@@ -114,6 +116,7 @@ def test_runtime_owner_and_compatibility_bridge_are_required(source, tmp_path, s
 @pytest.mark.parametrize("source_path", [
     "tools/specify-runtime/e2e_workflow.go",
     "tools/specify-runtime/e2e_contract.go",
+    "tools/specify-runtime/e2e_views.go",
 ])
 def test_deleted_runtime_owner_cannot_shrink_packaging_scope(source, tmp_path, source_path):
     wheel = wheel_for(tmp_path, verifier.source_assets(source))
@@ -193,6 +196,104 @@ def test_nested_references_are_included_and_caches_ignored(source):
     assets = verifier.source_assets(source)
     assert any("/nested/fixture.md" in name for name in assets)
     assert not any("__pycache__" in name for name in assets)
+
+
+OMITTED_NATIVE_PATHS = (
+    "adapter-registry-cover.out", "tool-bridge-cover.out",
+    ".tmp/00/build-output", ".tmp-go/test/output", ".tmp-gotmp-release-final/TestForeground/001/linked worktree/.git",
+    ".tmp-gotmp-release-final/TestForeground/001/linked worktree/ordinary-file.go",
+    ".gocache/cache-object", "bin/specify-runtime", ".git/config", ".hg/store/data", ".svn/entries", ".bzr/branch/format",
+)
+RETAINED_NATIVE_PATHS = (
+    "go.mod", "go.sum", "e2e_views.go", "context/context.go", "internal/testdata/.hidden-input",
+    "internal/testdata/.gitignore", "internal/testdata/.tmp-fixture/input.json", "internal/testdata/bin/expected.json",
+    ".source-contract", ".tmp-contract-file", "temporary-source.go",
+)
+
+
+def native_boundary_files(source):
+    for name in OMITTED_NATIVE_PATHS + RETAINED_NATIVE_PATHS:
+        path = source / "tools/specify-runtime" / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(("SYNTHETIC " + name + "\n").encode())
+
+
+def test_known_native_temporary_roots_are_pruned_without_shrinking_hidden_sources(source, tmp_path, monkeypatch):
+    native_boundary_files(source)
+    original_walk = verifier.os.walk
+
+    def checked_walk(directory):
+        for parent, directories, files in original_walk(directory):
+            relative = Path(parent).relative_to(source)
+            # The excluded trees must not even be visited (e.g. linked worktrees
+            # and concurrently written Go cache entries are outside inventory).
+            assert not verifier.excluded_source(PurePosixPath(relative.as_posix()), directory=True)
+            yield parent, directories, files
+
+    monkeypatch.setattr(verifier.os, "walk", checked_walk)
+    assets = verifier.source_assets(source)
+    prefix = "specify_cli/core_pack/tools/specify-runtime/"
+    assert all(prefix + name not in assets for name in OMITTED_NATIVE_PATHS)
+    assert all(prefix + name in assets for name in RETAINED_NATIVE_PATHS)
+    wheel = wheel_for(tmp_path, assets)
+    assert verifier.verify_wheel(wheel, source)["claim"] == "wheel_e2e_assets_verified"
+    # Mutating ignored data cannot silently authorize dropping a real source.
+    target = prefix + "internal/testdata/.hidden-input"
+    del assets[target]
+    with pytest.raises(verifier.WheelError, match="missing wheel asset"):
+        verifier.verify_wheel(wheel_for(tmp_path, assets), source)
+
+
+@pytest.mark.parametrize("mutation", ["missing", "corrupt"])
+def test_ordinary_hidden_native_testdata_remains_a_required_asset(source, tmp_path, mutation):
+    native_boundary_files(source)
+    assets = verifier.source_assets(source)
+    target = "specify_cli/core_pack/tools/specify-runtime/internal/testdata/.hidden-input"
+    if mutation == "missing":
+        del assets[target]
+    else:
+        assets[target] = b"X" * len(assets[target])
+    with pytest.raises(verifier.WheelError, match="missing wheel asset|bytes mismatch"):
+        verifier.verify_wheel(wheel_for(tmp_path, assets), source)
+
+
+@pytest.mark.parametrize("name", OMITTED_NATIVE_PATHS)
+def test_old_wheel_cannot_keep_excluded_native_contents(source, tmp_path, name):
+    assets = verifier.source_assets(source)
+    # An old or manually assembled wheel must not pass merely because its
+    # temporary contents were removed from the expected source inventory.
+    assets["specify_cli/core_pack/tools/specify-runtime/" + name] = b"local-only"
+    with pytest.raises(verifier.WheelError, match="excluded local/VCS asset"):
+        verifier.verify_wheel(wheel_for(tmp_path, assets), source)
+
+
+def test_actual_hatch_wheel_excludes_only_known_native_roots_and_vcs(source, tmp_path):
+    # Hatch is the declared build backend, not an application dependency. Run
+    # this packaging check with `uv run --with hatchling pytest ...`.
+    pytest.importorskip("hatchling", reason="real wheel exclusion check requires the declared Hatch build backend")
+    from hatchling.builders.wheel import WheelBuilder
+    native_boundary_files(source)
+    config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    wheel_config = deepcopy(config["tool"]["hatch"]["build"]["targets"]["wheel"])
+    # The tiny synthetic project supplies only the actual owner trees used by
+    # this verifier. Its force-inclusion keys/destinations and excludes come
+    # unchanged from the repository's real distribution contract.
+    wheel_config["force-include"] = {name: target for name, target in wheel_config["force-include"].items() if (source / name).exists()}
+    synthetic_config = {"project": {"name": "specify-cli", "version": "0.0.0"},
+        "tool": {"hatch": {"build": {"targets": {"wheel": wheel_config}}}}}
+    destination = tmp_path / "actual-hatch-wheel"
+    destination.mkdir()
+    builder = WheelBuilder(str(source), config=synthetic_config)
+    built = list(builder.build(directory=str(destination)))
+    assert len(built) == 1
+    wheel = Path(built[0])
+    with zipfile.ZipFile(wheel) as archive:
+        names = set(archive.namelist())
+    prefix = "specify_cli/core_pack/tools/specify-runtime/"
+    assert not [name for name in OMITTED_NATIVE_PATHS if prefix + name in names]
+    assert not [name for name in RETAINED_NATIVE_PATHS if prefix + name not in names]
+    assert all("specify_cli/core_pack/scripts/shared/" + helper in names for helper in verifier.HELPERS)
+    assert verifier.verify_wheel(wheel, source)["claim"] == "wheel_e2e_assets_verified"
 
 
 @pytest.mark.parametrize("optimized", [False, True])

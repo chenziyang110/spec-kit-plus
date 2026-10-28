@@ -1,7 +1,7 @@
 # Quick Reference Index
 
 - [semantic-work-contract.md](semantic-work-contract.md): Trigger: when project-cognition-backed semantic intake, routing, permission, audit, resume, or final-claim rules affect the quick workflow.
-- [intake-and-checkpoint.md](intake-and-checkpoint.md): Trigger: before quick-task execution, broad reads, delegation, or validation commands.
+- [intake-and-checkpoint.md](intake-and-checkpoint.md): Trigger: before bounded current-state discovery or quick-task execution.
 - [senior-consequence-analysis.md](senior-consequence-analysis.md): Trigger: before consequential Quick work that affects lifecycle state, shared state, downstream consumers, compatibility, migration, rollout, or multi-behavior semantics.
 - [workspace-state.md](workspace-state.md): Trigger: when creating, resuming, recovering, closing, or archiving a quick-task workspace.
 - [handoff-consumption.md](handoff-consumption.md): Trigger: when sp-quick starts from discussion or task handoff material.

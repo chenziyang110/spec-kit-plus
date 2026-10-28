@@ -102,7 +102,10 @@ func applyAddPathTx(ctx context.Context, tx *sql.Tx, generationID string, input 
 		nodeID = "N-update-" + stableIDPart(generationID+"-"+change.Path)
 		createdNode = true
 	} else if err := requireActiveNodeTx(ctx, tx, generationID, nodeID); err != nil {
-		return nil, err
+		if !typedUpdateAllowsPendingScopedNode(input, nodeID) {
+			return nil, err
+		}
+		createdNode = true
 	}
 	reason := typedUpdateReason(input)
 	evidenceID, err := upsertTypedUpdateEvidenceTx(ctx, tx, generationID, input.Record.ID, change, reason, now)
@@ -308,6 +311,18 @@ func upsertTypedUpdateEvidenceTx(ctx context.Context, tx *sql.Tx, generationID, 
 		return "", fmt.Errorf("upsert typed update evidence for %s: %w", change.Path, err)
 	}
 	return evidenceID, nil
+}
+
+func typedUpdateAllowsPendingScopedNode(input TypedUpdate, nodeID string) bool {
+	if !strings.HasPrefix(strings.TrimSpace(nodeID), "N-scoped-") {
+		return false
+	}
+	if input.Record.Attrs == nil {
+		return false
+	}
+	_, hasIntent := input.Record.Attrs["closeout_intent_id"]
+	_, hasScopedDraft := input.Record.Attrs["scoped_registration_request_sha256"]
+	return hasIntent && hasScopedDraft
 }
 
 func typedUpdateReason(input TypedUpdate) string {

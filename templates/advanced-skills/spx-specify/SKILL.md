@@ -110,7 +110,10 @@ the contract rather than reconstructing phase state. Create rich
 resume details, and Learning; it does not own phase order or runtime revision.
 Run
 `{{specify-subcmd:specify-runtime hook validate-state --command specify --feature-dir <feature-dir> --autofix --format json}}`
-and stop if the repaired state remains invalid.
+and withhold dependent writes if it remains invalid. Diagnose and repair
+current-owner state through supported runtime routes, then rerun this gate in
+the same invocation; never hand-edit state or bypass validation. Preserve any
+genuine human-only integration or approval boundary.
 Create specification-stage outputs only through their registered artifact CLI owners: `spec-contract.json`, `spec.md`,
 triggered alignment/context/reference views, a triggered `ui-brief.md`, and
 specification evidence or workflow-owned rich state.

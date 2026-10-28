@@ -176,3 +176,97 @@ account payments failed or the spending limit needs increasing. Cloud CI is
 unverified, including the complete Python suite, Python 3.11/3.12 and Linux/macOS
 matrix. This record qualifies source maintenance integration only; no runtime
 release, anonymous consumer verification or downstream acceptance is claimed.
+
+## Local optimization integration, 2026-10-10
+
+The B0/R1/R2/Q1/S1/S2/L1/R3/V1 optimization scope extends the existing owners.
+The shared Go runtime provides compact paginated status, exact task/attempt
+readback, complete readiness and candidate conflicts, structured drift roots
+and descendant invalidation, and request-local immutable read deduplication.
+Default full status stays available. Each actual mutation still checks current
+revision, input bytes, immutable history and transaction preconditions.
+Recorded identities and hashes establish consistency, not agent authentication.
+
+Classic and Advanced require the same capabilities and acceptance semantics.
+The stdout-only `e2e_assets.py` helper adds requirement-derived risk interactions,
+known-wrong strength controls, pre-frozen book bundles and many-to-many native
+crosswalks. It delegates the existing auditors and does not own E2E run state.
+Playbook and Learning reuse remain advisory, require renewed applicability after
+environment changes, and cannot transplant historical passes or automatically
+promote project rules. No nested DoSession is created by E2E reuse.
+See [the current E2E guide](../docs/sp-e2e.md).
+
+Verification used the local dirty source at base revision
+`d9fa9766b9255ef0fcfa2585a996bfe73b284ba8`, Windows/Python 3.13.11, actual
+Chromium/Playwright Test, and the Go toolchain declared by `go.mod`.
+
+| Local evidence | Scope and result |
+| --- | --- |
+| Portable E2E owners | 431 cases: 429 passed, two existing Windows symlink-permission skips; the live Playwright probe ran |
+| Current packaging guards | 123 passed, zero skipped; actual Hatch wheel construction, hidden fixture retention, missing/corrupt source, RECORD and stale temporary-content refusal |
+| Installation/rendering owners | 288 passed; historical native-zero run retained through independent current dependency rebinding |
+| Shared runtime/profile owners | 290 passed; historical native-zero run retained through independent current dependency rebinding; `go vet ./...` passed |
+| Go E2E/registry owners | 59 test functions and 81 subtests passed across the original run and exact source-bound recovery; the original 1,200-second timeout remains a failed command |
+| Native desktop regressions | 61 cases: 60 passed, one existing Windows privilege skip; actual widget events on a separate nonactivated desktop |
+| Live browser controls | Success passed; visible success with a wrong durable effect failed; a native retry success retained the failed attempt and flaky refusal; empty selection was refused without coverage credit |
+| Model visual baseline | Three cases, nine conditions and one timing obligation; 11 captures with actual observations/actions and independent readback cover normal rename, external mutation refusal and cancel/reopen recovery |
+| Actual installed wheel | All four Codex sh/ps selection × profile installation-order cases passed in an external wheel-only environment, including preserved edits, missing-entrypoint repair, project runtime pinning, Learning and all five helpers |
+| Compatibility | Actual old runtime lacks `e2e.compact`/`e2e.task-show` and returns native exit 10; the installed Python handshake policy rejects it and accepts the current runtime |
+| Prompt/lint closeout | All 30 SPX skill formats passed; Python and package-verifier lint, affected Markdown, exact-path asset checks and whitespace checks passed |
+
+The installation/shared runs have unchanged source, fixture and executed-test
+owners. Their original whole-repository guards remain false because the
+concurrent, subsequently accepted wheel-boundary and UTF-8 test-reader repairs
+changed five unrelated paths. Current package/portable runs and installed-wheel
+verification bind the repaired owners; the old aggregate guards are not relabeled
+as passes. Counts above overlap and must not be summed into a repository-wide
+suite result. Native widget events remain distinct from model visual perception.
+The sh/ps installation selections do not establish every generated shell path's
+execution behavior.
+
+The current wheel has SHA-256
+`272cb4bf76333a9238a2a2a5e84878c2f86b5aeb38d47b800ae47f36b0405ded`;
+535 declared source/archive assets and RECORD entries were verified. Its
+132 actual probe commands include expected exit-10 partial repairs, which
+preserve the deliberately edited helper. Native local temporary/build roots
+and VCS internals are excluded deterministically; ordinary hidden testdata
+remain required assets. Production dependencies and the observed lock were
+unchanged. The frozen runtime binary has SHA-256
+`2b45c020b06348202d3715e1bd56c3b228f6e99b4e4bd20034a42b2697f82761`.
+The distribution job explicitly requests the declared Hatch backend in its
+frozen test consumer. The original environment skipped the actual-Hatch case
+and the unchanged zero-skip gate rejected its JUnit; the repaired consumer
+passes that gate and all 123 current packaging checks locally. This verifies
+the environment contract, not a successful cloud CI run.
+The readiness addition itself follows those executable checks; final document
+and exact-path checks bind this addition separately.
+
+For 7/70/700 tasks, current full replies were 7,375/64,505/636,039 bytes;
+compact replies were 3,884/8,620/8,643 bytes. The 700-task first page is 98.64%
+smaller than the same-version full reply, and all 700 tasks remain reachable
+through 28 verified pages. Each size has only three local timing samples under
+concurrent checks: at 700 tasks the compact median was 623.40 ms versus
+488.80 ms full. This measures response size, not universal latency or agent-token
+improvement. Full replies include additional readiness data and grew relative
+to B0; a fresh fixture does not mean a cleared operating-system cache.
+
+The 1 MiB/64-shared-reference evidence workloads reduce successful read calls
+from 128 to 65 and returned bytes from 67,152,960 to 1,092,672 (98.37% less).
+Across nine measured workload/size pairs, cumulative allocated bytes decrease
+in six, while allocation counts increase slightly. Returned bytes are neither
+physical disk traffic nor peak memory. The first large evidence read still
+buffers the file; streaming remains explicitly deferred by the measured scope.
+
+Original failures, repairs, skipped cases and immutable failed attempts remain
+in the evidence chain. A transient Windows prepared-transaction directory
+publication refusal was independently diagnosed before business-file commit;
+its operating-system cause remains unknown. The unchanged cost probe and
+accepted runtime succeeded in a fresh isolated project. This does not prove a
+path-length, cache or antivirus cause, or imply the failed command made no
+temporary staging writes.
+
+This is local maintenance verification. The complete repository suite,
+Python 3.11/3.12, Linux/macOS matrix, successful cloud CI, publication and anonymous
+release-consumer verification remain unverified. No runtime release or downstream
+product acceptance is claimed. Existing completed sp-do source changes and
+unrelated temporary data are preserved.

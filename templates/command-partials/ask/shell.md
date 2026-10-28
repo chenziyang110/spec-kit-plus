@@ -14,7 +14,7 @@ Answer project questions with evidence-backed, read-only project Q&A.
 ## Process
 
 - Classify the user's question.
-- Detect whether the question is a same-topic follow-up in the current chat. If it is, reuse the previous evidence set, compass or query output, target project root, and proven facts already visible in the conversation; read only delta evidence needed for the new point. Rerun compass or rebuild intake when the topic, target project, evidence surface, or confidence changes.
+- Detect whether the question is a same-topic follow-up in the current chat. Reuse the previous evidence set only after the valid-capsule check below; read only delta evidence needed for the new point. Chat continuity alone is not evidence of fresh cognition or unchanged source.
 - For non-trivial questions, give the user a one-sentence evidence route before live reads, such as the two or three surfaces you will check. Keep it short and do not turn it into a plan artifact.
 - Use project cognition to find the smallest likely evidence set.
 - Normalize localized, mixed-language, CJK, colloquial, or project-slang terms into project vocabulary before source search. Use the alias catalog, candidate concepts, returned paths, and live hits to build project-language search terms; do not search only the raw user words.
@@ -63,7 +63,7 @@ Allowed operations are narrow file reads, `rg`, project memory reads, generated-
 
 ## Default Navigation
 
-Start with:
+When no valid unchanged capsule is available, start with:
 
 ```text
 {{specify-subcmd:specify-runtime cognition compass --intent ask --query="$ARGUMENTS" --format json}}
@@ -86,9 +86,40 @@ For localized, mixed-language, CJK, colloquial, or project-slang questions, agen
 Same-topic follow-up mode:
 
 - Use when the current user question is a direct continuation of the prior `sp-ask` answer in the same chat.
-- Reuse the previous target project root, evidence set, compass or query packet, semantic intake, and proven facts when they still cover the new question.
-- Read only delta evidence for new claims, missing surfaces, changed terminology, or unresolved uncertainty.
-- Rerun `specify-runtime cognition compass --intent ask` when the follow-up changes topic, target project root, evidence family, or boundary, or when the prior evidence is not available in the conversation.
+- Reuse the previous evidence set, target project root, compass or query packet,
+  semantic intake, and proven facts only for the exact unchanged task/query,
+  intent, target, scope/required facets, constraints, permissions, runtime, and
+  relevant live-source/evidence digests. Keep `expansion_ref.id`,
+  `query_fingerprint`, `active_generation_id`, `navigation_digest`, and versions.
+- Before one unchanged phase pass reuses that capsule, require
+  `cognition.expansion.snapshot.v2` from a bounded `api ensure` proof or one
+  older-runtime `api list` fallback. Run one actual read-only
+  `{{specify-subcmd:specify-runtime cognition expand --id <id> --section <section> --format json}}`
+  with its ID and an available section such as `related_paths`. Require the
+  inner payload's `status=ok`, usable `readiness=query_ready|review`,
+  `expansion_contract_version=2`, matching ID,
+  fingerprint, generation, and advisory `epistemic_contract`. A native outer
+  exit code 0 alone is not proof. Missing, stale, incompatible, invalid, or
+  failed expansion disables reuse; preserve its recovery action.
+- Read only delta evidence for new claims, missing surfaces, changed terminology,
+  or unresolved uncertainty. Rerun `specify-runtime cognition compass --intent ask`
+  for changed task/query, topic, target, scope/facets, constraints, permissions,
+  runtime, source/evidence, generation, status, or claim revision, contradictory
+  evidence, and required resume/recovery. Preparatory API/artifact/board calls
+  alone do not repeat intake or that unchanged Expand check.
+- Learning applicability is separate: a graph digest cannot prove the Learning
+  index, lesson source evidence, or project rules unchanged. Relevant lesson/rule
+  drift or uncertain applicability refreshes the owning read-only Learning intake.
+- In catalog precision escalation, require `cognition.catalog.snapshot.v1` and
+  execute `catalog_page.next_argv` exactly while required facets remain unbound;
+  preserve revision, snapshot proof, and counts. Stop only after all required
+  owners, consumers/dependencies, verification routes, and negative constraints
+  have valid bindings and live evidence, with ambiguity resolved. The first word
+  match is insufficient. The project launcher may replace only the executable.
+  Keep unresolved facets/index gaps explicit; stale snapshots restart intake.
+  For required claim pages, require `cognition.claim-evidence.page.v1`, preserve
+  `total_count`, `returned_count`, `offset`, and `has_more`, and consume `next_argv`
+  exactly while needed. Capability IDs are not commands or write authority.
 
 ## Question Classifier
 

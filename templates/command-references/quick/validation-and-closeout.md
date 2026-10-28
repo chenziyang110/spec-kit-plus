@@ -34,10 +34,13 @@ or substitute historical method success for fresh evidence.
 
 Terminal order for source-changing quick work:
 
-1. Verification green and recorded
-2. Inline cognition closeout (planner → update → validate-build/complete-refresh **or** mark-dirty)
-3. Durable receipt: `specify-runtime quick cognition-closeout <id> --result-state ready|no_op|mark-dirty|partial --reason "…" --format json`
-4. `SUMMARY.md` includes `project_cognition_refresh`
+Require `cognition.closeout.recovery.v1` and `cognition.closeout.binding.v1` through the shared closeout capability
+check before this tail; an older runtime must follow its upgrade/recovery action.
+
+1. After accepted joins, first call the planner in the shared inline closeout contract for the owned changed paths, then use its inputs to begin the native current-work/source binding. Run final verification against that basis and seal it with fresh observations. Legacy or copied passing logs cannot bind newly changed bytes.
+2. Inline cognition closeout: use the plan already obtained → complete truthful agent fields → execute returned shared `apply_argv`. Shared apply owns update, validation, eligible finalization, and the durable receipt; do not stamp a second receipt.
+3. If an intent is already durable, inspect the exact intent and consume its digest-bound repair/replay actions. Keep Quick active until its own receipt allows close. Only when no trustworthy intent can be formed may mark-dirty use the standalone `quick cognition-closeout <id> --result-state mark-dirty --reason "…" --format json` fallback.
+4. `SUMMARY.md` includes `project_cognition_refresh`; inspect `quick status` and require `cognition_closeout.allowed_close=true`.
 5. `specify-runtime quick close <id> resolved` (positional status required)
 
 `quick close … resolved` **blocks** when confirmed `write_scope` / `changed_code_paths` imply project mutation and no valid `cognition-closeout.json` exists. `item-accept` + tests alone cannot close. Inspect the gate with `specify-runtime quick status <id>` → `cognition_closeout` (`required`, `status`, `allowed_close`, `result_state`).

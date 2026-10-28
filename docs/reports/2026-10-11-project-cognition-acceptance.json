@@ -1,0 +1,1280 @@
+{
+  "schema": "project-cognition-final-independent-acceptance.v1",
+  "item": "X1",
+  "status": "accepted",
+  "validator": "/root/cognition_independent_review",
+  "validated_at_utc": "2026-10-10T21:30:48.210042+00:00",
+  "authorship": "Nonauthor of product implementation, evaluator/gold/actors, root final report/evaluationJSON and replay ZIP. Read-only independent source/raw review and isolated derived probes; preservation/metric review delegated to a separate read-only child. Only own validation files written.",
+  "environment": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.13.11",
+    "workspace": "F:\\github\\spec-kit-plus"
+  },
+  "author_submission": {
+    "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\X1-result.json",
+    "sha256": "792d823b87f269fa46e3932b49001effb1cf214f3ed14d5053c03702d36ee655",
+    "bytes": 27335
+  },
+  "original_contract": {
+    "path": "F:\\github\\spec-kit-plus\\docs\\reports\\2026-10-10-project-cognition-optimization.md",
+    "sha256": "ff42ee0d7a88058986531e7ab971028b5c3ef0c4b39975c1edc55032028ae183",
+    "bytes": 17259
+  },
+  "full_scope": {
+    "original_items": 10,
+    "original_acceptance_rows": 37,
+    "added_items": 3,
+    "added_rows": 4,
+    "required_items": 13,
+    "required_rows": 41,
+    "accepted_prerequisite_items": 12,
+    "accepted_prerequisite_rows": 36,
+    "original_required_X1_rows": 5,
+    "accepted_X1_rows": 5,
+    "unmet_required_rows": []
+  },
+  "exact_durable_outputs": [
+    {
+      "path": "F:\\github\\spec-kit-plus\\docs\\reports\\2026-10-11-project-cognition-optimization-implementation.md",
+      "sha256": "5ac4ac3611c1842133718f6465e00a8655d90691b5f2082f9166fcccaef1aca4",
+      "bytes": 11451,
+      "relative_path": "docs/reports/2026-10-11-project-cognition-optimization-implementation.md"
+    },
+    {
+      "path": "F:\\github\\spec-kit-plus\\docs\\reports\\2026-10-11-project-cognition-evaluation.json",
+      "sha256": "de4d181d140785565bc43463c568d6779e295305c32585db6ee252ef162ae810",
+      "bytes": 245195,
+      "relative_path": "docs/reports/2026-10-11-project-cognition-evaluation.json"
+    },
+    {
+      "path": "F:\\github\\spec-kit-plus\\docs\\reports\\2026-10-11-project-cognition-replay.zip",
+      "sha256": "37fe85ef0beeb7605bf806062fbac9883ae2070b7602ef8d42bb95fe89b3cb04",
+      "bytes": 260668299,
+      "relative_path": "docs/reports/2026-10-11-project-cognition-replay.zip"
+    }
+  ],
+  "acceptance_rows": [
+    {
+      "id": "X1-AC1",
+      "criterion": "all original package rows integrated and independently accepted",
+      "status": "accepted",
+      "observed": "Original 10 items/37 rows plus 3 items/4 rows remain 13/41. All 12 prerequisite items/36 original rows match immutable accepted authorities and current sources; all five original X1 rows retained. Both 120-record phases, all 10549 current C6b bindings, all 4712 immutable BEFORE bindings, original20 logical-role cells and current47-source facts join through exact archived bytes. Accuracy88/120 to120/120, zero pass-to-fail; total navigation median regresses17.1961205 to19.08760525s. This accepts implementation plus a complete measured navigation pilot, not overall agent acceleration."
+    },
+    {
+      "id": "X1-AC2",
+      "criterion": "both rendered profiles additive repair and old-runtime refusal",
+      "status": "accepted",
+      "observed": "Current C4v4 prompt contracts remain reachable across both profiles and affected Codex/Claude installs with Classic Gemini rendering checks. Four Classic map companion sets remain byte-equivalent; all three moved C5 semantic/mutation blocks preserved. Fresh/additive/repair/custom controls and actual old-runtime refusal are current-source-bound, not merely file existence. Independent final hydrated binaries also execute four version/ensure commands with exits0,10,0,0; existing Do/E2E capability requirements remain."
+    },
+    {
+      "id": "X1-AC3",
+      "criterion": "relevant Go Python install package and native checks",
+      "status": "accepted",
+      "observed": "Reparsed full original verification scope: owner Go106 top+79 nested, cross Go77 top+87 distinct nested, three preserved aggregate timeouts then all original selected cases pass/no testfail/skip. Original Python626 stays617 pass/4fail/5skip; four bounded repairs and two real old-runtime skip supplements verified separately. Three platform rows remain unavailable. Current noneditable wheel550assets/17shippingowners has4actual profile-order/script cases and132calls(128exit0,4expectedpartialrepair exit10). Current214compile inputs/440bounded runtime inputs and1359source/17Python freeze bound. Full final archive verify/hydrate plus4derived native smoke calls pass; no broad suite rerun claimed."
+    },
+    {
+      "id": "X1-AC4",
+      "criterion": "prior Do E2E changes and unrelated files preserved",
+      "status": "accepted",
+      "observed": "Independent complete taskstart1823 path set matches prior E2E final baseline;1784 unchanged,39 changes match accepted current owner groups,0missing. All58 directly named E2E paths remain unchanged. PriorDo58 has51same+7shared bounded changes with complete original-byte reconstruction and exact acceptedDo digests; four preserved E2E diff snapshots verified. Current1359source,17Python,214compile,C4v4 16 and63finalowner/doc bindings exact. Unmanifested caches/temp files are not asserted byte-equivalent."
+    },
+    {
+      "id": "X1-AC5",
+      "criterion": "exact diff assets whitespace and documented measured limits",
+      "status": "accepted",
+      "observed": "Exact task-owner diff and current63UTF8/whitespace/newline checks accepted; final64paths native asset policy0, git diff-check0 and fresh exact report markdownlint0. Three durable output hashes frozen. Report/JSON full metrics/38local numeric values validated and current-required ZIP34996rows/6640blobs fully verified/hydrated. Initial pack0/verify2 oversized manifest preserved, metadata whitespace-only repair proven by complete parsed-object/spec equality and6640 old/new blob pairs. Historical61stale/43matchingelsewhere/18unrecovered plus108incidental caches remain explicit, along with timing/source/platform/token/Learning/live-map/release limits. Post-copy acceptance-file policy/identity check is a separate mechanical publication join, not a reason to alter these outputs."
+    }
+  ],
+  "accepted_prerequisites": [
+    {
+      "item": "C0",
+      "original_row_ids": [
+        "C0-AC1",
+        "C0-AC2",
+        "C0-AC3",
+        "C0-AC4"
+      ],
+      "status": "accepted",
+      "exact_independent_receipts": [
+        {
+          "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\c4-validation-v4-c0-rebind.json",
+          "sha256": "d55cf1a653904fead3b62f76f1865ff46a8b648a0c12779765de80d99e8f68a2",
+          "bytes": 9755,
+          "archive_record_id": "record-00000004",
+          "archive_portable_path": "e/4",
+          "archive_blob": "blobs/d55cf1a653904fead3b62f76f1865ff46a8b648a0c12779765de80d99e8f68a2"
+        }
+      ]
+    },
+    {
+      "item": "C1",
+      "original_row_ids": [
+        "C1-AC1",
+        "C1-AC2",
+        "C1-AC3",
+        "C1-AC4"
+      ],
+      "status": "accepted",
+      "exact_independent_receipts": [
+        {
+          "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\c3-validation-dependency-rebind.json",
+          "sha256": "0369acf1dc5e23be66909df6cb5b53637348073c55ed70b44cc25a949955bfd4",
+          "bytes": 5346,
+          "archive_record_id": "record-00000005",
+          "archive_portable_path": "e/5",
+          "archive_blob": "blobs/0369acf1dc5e23be66909df6cb5b53637348073c55ed70b44cc25a949955bfd4"
+        }
+      ]
+    },
+    {
+      "item": "C2",
+      "original_row_ids": [
+        "C2-AC1",
+        "C2-AC2",
+        "C2-AC3"
+      ],
+      "status": "accepted",
+      "exact_independent_receipts": [
+        {
+          "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\c3-validation-dependency-rebind.json",
+          "sha256": "0369acf1dc5e23be66909df6cb5b53637348073c55ed70b44cc25a949955bfd4",
+          "bytes": 5346,
+          "archive_record_id": "record-00000005",
+          "archive_portable_path": "e/5",
+          "archive_blob": "blobs/0369acf1dc5e23be66909df6cb5b53637348073c55ed70b44cc25a949955bfd4"
+        }
+      ]
+    },
+    {
+      "item": "C3",
+      "original_row_ids": [
+        "C3-AC1",
+        "C3-AC2",
+        "C3-AC3",
+        "C3-AC4"
+      ],
+      "status": "accepted",
+      "exact_independent_receipts": [
+        {
+          "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\c3-validation.json",
+          "sha256": "52bfd44d7d43bce2dc3bcafeb071fe30e48ec0ed791dff98f7e5896a1adc3fcb",
+          "bytes": 15156,
+          "archive_record_id": "record-00000006",
+          "archive_portable_path": "e/6",
+          "archive_blob": "blobs/52bfd44d7d43bce2dc3bcafeb071fe30e48ec0ed791dff98f7e5896a1adc3fcb"
+        }
+      ]
+    },
+    {
+      "item": "C4",
+      "original_row_ids": [
+        "C4-AC1",
+        "C4-AC2",
+        "C4-AC3"
+      ],
+      "status": "accepted",
+      "exact_independent_receipts": [
+        {
+          "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\c4-validation-v4.json",
+          "sha256": "a7e5dc67cc88c237b2a664f6e2bb79d50fcb4ffc4da8b7fb40d49180cd1f46dd",
+          "bytes": 9521,
+          "archive_record_id": "record-00000007",
+          "archive_portable_path": "e/7",
+          "archive_blob": "blobs/a7e5dc67cc88c237b2a664f6e2bb79d50fcb4ffc4da8b7fb40d49180cd1f46dd"
+        }
+      ]
+    },
+    {
+      "item": "C5",
+      "original_row_ids": [
+        "C5-AC1",
+        "C5-AC2",
+        "C5-AC3"
+      ],
+      "status": "accepted",
+      "exact_independent_receipts": [
+        {
+          "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\c4-validation-v4-c5-rebind.json",
+          "sha256": "8e659a8b9c2c7e4f5c1f81183c07c229491e48823bc4259abc2825d37df378b7",
+          "bytes": 8590,
+          "archive_record_id": "record-00000008",
+          "archive_portable_path": "e/8",
+          "archive_blob": "blobs/8e659a8b9c2c7e4f5c1f81183c07c229491e48823bc4259abc2825d37df378b7"
+        }
+      ]
+    },
+    {
+      "item": "C6a",
+      "original_row_ids": [
+        "C6a-AC1",
+        "C6a-AC2",
+        "C6a-AC3",
+        "C6a-AC4"
+      ],
+      "status": "accepted",
+      "exact_independent_receipts": [
+        {
+          "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\c6a-validation.json",
+          "sha256": "708136a163a8abca7f1537abc75262d74edc71a828fe13164e9521c70ab6de89",
+          "bytes": 17753,
+          "archive_record_id": "record-00000009",
+          "archive_portable_path": "e/9",
+          "archive_blob": "blobs/708136a163a8abca7f1537abc75262d74edc71a828fe13164e9521c70ab6de89"
+        }
+      ]
+    },
+    {
+      "item": "C6b",
+      "original_row_ids": [
+        "C6b-AC1",
+        "C6b-AC2",
+        "C6b-AC3",
+        "C6b-AC4"
+      ],
+      "status": "accepted",
+      "exact_independent_receipts": [
+        {
+          "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\c6b-validation.json",
+          "sha256": "788b4f4c15d0febd1296b03c98499b9f11afb6b34384ae5046a6eabdb77cb83d",
+          "bytes": 13378,
+          "archive_record_id": "record-00000010",
+          "archive_portable_path": "e/10",
+          "archive_blob": "blobs/788b4f4c15d0febd1296b03c98499b9f11afb6b34384ae5046a6eabdb77cb83d"
+        }
+      ]
+    },
+    {
+      "item": "C7",
+      "original_row_ids": [
+        "C7-AC1",
+        "C7-AC2",
+        "C7-AC3"
+      ],
+      "status": "accepted",
+      "exact_independent_receipts": [
+        {
+          "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\c7-validation.json",
+          "sha256": "13ac8fdd1541e61efcf0a5ec96d930e5138c9941383cf0955b6ae94bd5afe847",
+          "bytes": 22366,
+          "archive_record_id": "record-00000011",
+          "archive_portable_path": "e/11",
+          "archive_blob": "blobs/13ac8fdd1541e61efcf0a5ec96d930e5138c9941383cf0955b6ae94bd5afe847"
+        }
+      ]
+    },
+    {
+      "item": "X1a",
+      "original_row_ids": [
+        "X1a-AC1",
+        "X1a-AC2"
+      ],
+      "status": "accepted",
+      "exact_independent_receipts": [
+        {
+          "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\c4-validation-v4-x1a-rebind.json",
+          "sha256": "9ab6afa86499c8618ba6716e05242d4b21bbb85fe898013a540a0455881be79b",
+          "bytes": 9810,
+          "archive_record_id": "record-00000012",
+          "archive_portable_path": "e/12",
+          "archive_blob": "blobs/9ab6afa86499c8618ba6716e05242d4b21bbb85fe898013a540a0455881be79b"
+        }
+      ]
+    },
+    {
+      "item": "X1b",
+      "original_row_ids": [
+        "X1b-AC1"
+      ],
+      "status": "accepted",
+      "exact_independent_receipts": [
+        {
+          "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1b-independent-validation.json",
+          "sha256": "e9cb861d02dc3bad821af702b6f38c915cd21be29d18dd9c07132452cf55a64f",
+          "bytes": 7836,
+          "archive_record_id": "record-00000013",
+          "archive_portable_path": "e/13",
+          "archive_blob": "blobs/e9cb861d02dc3bad821af702b6f38c915cd21be29d18dd9c07132452cf55a64f"
+        }
+      ]
+    },
+    {
+      "item": "P1",
+      "original_row_ids": [
+        "P1-AC1"
+      ],
+      "status": "accepted",
+      "exact_independent_receipts": [
+        {
+          "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\P1-validation.json",
+          "sha256": "299b156f7364136f0a5f5bee6949f8693c52ea26734ac596cd099de9a64f3a3b",
+          "bytes": 9637,
+          "archive_record_id": "record-00000014",
+          "archive_portable_path": "e/14",
+          "archive_blob": "blobs/299b156f7364136f0a5f5bee6949f8693c52ea26734ac596cd099de9a64f3a3b"
+        }
+      ]
+    }
+  ],
+  "immutable_original_full_row_ledger_in_archive": {
+    "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\ledger-start.json",
+    "sha256": "9d4e6d96752de2dd49e73a9bec24668e888482cf7e0b3428754f4b9c648a392a",
+    "bytes": 90384,
+    "archive_record_id": "record-00034431",
+    "archive_portable_path": "final-inputs/x1-validation/ledger-start.json",
+    "archive_blob": "blobs/9d4e6d96752de2dd49e73a9bec24668e888482cf7e0b3428754f4b9c648a392a"
+  },
+  "archive_resolvable_support": [
+    {
+      "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\preparation.json",
+      "sha256": "acb38bf2e1cdf975e4a03d25f650bc9910dea01b562390dd77073e0702a23093",
+      "bytes": 273880,
+      "archive_record_id": "record-00034420",
+      "archive_portable_path": "final-inputs/x1-validation/preparation.json",
+      "archive_blob": "blobs/acb38bf2e1cdf975e4a03d25f650bc9910dea01b562390dd77073e0702a23093"
+    },
+    {
+      "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\legacy-supplement.json",
+      "sha256": "efd62916df66948e4a6dea0af2886a76dbc285e735c50eb6e1d201b40eeba24b",
+      "bytes": 2325,
+      "archive_record_id": "record-00034421",
+      "archive_portable_path": "final-inputs/x1-validation/legacy-supplement.json",
+      "archive_blob": "blobs/efd62916df66948e4a6dea0af2886a76dbc285e735c50eb6e1d201b40eeba24b"
+    },
+    {
+      "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\preservation-worker-evidence.json",
+      "sha256": "f6521d6dacac41b4a979913c0041d91dee23b5dc8126b05935d4c3b2aa75440c",
+      "bytes": 2086726,
+      "archive_record_id": "record-00034422",
+      "archive_portable_path": "final-inputs/x1-validation/preservation-worker-evidence.json",
+      "archive_blob": "blobs/f6521d6dacac41b4a979913c0041d91dee23b5dc8126b05935d4c3b2aa75440c"
+    },
+    {
+      "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\metrics-worker-evidence.json",
+      "sha256": "1c6ff03a442d5be136cbb70aeb29a838491360f0e20d247e4570e3720d60776b",
+      "bytes": 55631,
+      "archive_record_id": "record-00034424",
+      "archive_portable_path": "final-inputs/x1-validation/metrics-worker-evidence.json",
+      "archive_blob": "blobs/1c6ff03a442d5be136cbb70aeb29a838491360f0e20d247e4570e3720d60776b"
+    },
+    {
+      "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\document-input-acceptance.json",
+      "sha256": "0f0a1d553ca6c073effe42fb76cb41cd13a5f192e86a4f00032e14340cc2b465",
+      "bytes": 11908,
+      "archive_record_id": "record-00034418",
+      "archive_portable_path": "final-inputs/x1-validation/document-input-acceptance.json",
+      "archive_blob": "blobs/0f0a1d553ca6c073effe42fb76cb41cd13a5f192e86a4f00032e14340cc2b465"
+    },
+    {
+      "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-replay\\current-required-index-v2.json",
+      "sha256": "5e5f862df34558c0d86db796377f7ad0c3f409cf139524381ba783f1032ed0e0",
+      "bytes": 37633047,
+      "archive_record_id": "record-00034394",
+      "archive_portable_path": "closure/current-required-index-v2.json",
+      "archive_blob": "blobs/5e5f862df34558c0d86db796377f7ad0c3f409cf139524381ba783f1032ed0e0"
+    },
+    {
+      "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-replay\\historical-status.json",
+      "sha256": "2ec480044d74caf3a5c65a1592d048ba84978e1593d71ddeee70b0b66d39c83c",
+      "bytes": 181963,
+      "archive_record_id": "record-00034395",
+      "archive_portable_path": "closure/historical-status.json",
+      "archive_blob": "blobs/2ec480044d74caf3a5c65a1592d048ba84978e1593d71ddeee70b0b66d39c83c"
+    },
+    {
+      "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-replay\\finalization-context-provenance.json",
+      "sha256": "3f7783b64bc0cb9bc73a95dedf3bb50b3887124410bd119768361fc48e4350cd",
+      "bytes": 5341,
+      "archive_record_id": "record-00034994",
+      "archive_portable_path": "closure/finalization-context-provenance.json",
+      "archive_blob": "blobs/3f7783b64bc0cb9bc73a95dedf3bb50b3887124410bd119768361fc48e4350cd"
+    },
+    {
+      "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-replay\\portable-root-map.json",
+      "sha256": "0fc671d80190d7e8ff69368ca5f9aa06afeeb188015426d06b11506676bc22f2",
+      "bytes": 3504,
+      "archive_record_id": "record-00034396",
+      "archive_portable_path": "closure/portable-root-map.json",
+      "archive_blob": "blobs/0fc671d80190d7e8ff69368ca5f9aa06afeeb188015426d06b11506676bc22f2"
+    },
+    {
+      "archive_member": "input-spec.json",
+      "sha256": "f4d6baf1ad0290a1897223bca84443ddee9c08370620b273ed11c082d572fed4",
+      "bytes": 11474455
+    }
+  ],
+  "post_archive_checks_self_contained": {
+    "meaning": "Following outcomes are included here because the archive cannot contain its own final check or external acceptance. Other temporary refs are provenance, not sole required dependencies.",
+    "author_packet_direct_refs_checked": 34,
+    "exact_final_source_and_document_bindings": [
+      {
+        "path": "F:\\github\\spec-kit-plus\\PROJECT-HANDBOOK.md",
+        "sha256": "178902eda19fbc3f28ac4d4cc16cc0eda57fb2d118a2a26243dad08aa118cf00",
+        "bytes": 121332
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\README.md",
+        "sha256": "bf504db32890e02790ddeefe299f1ab9522346e457c25f8835a7b4c3a9b4b06c",
+        "bytes": 193173
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\docs\\reports\\2026-10-11-project-cognition-evaluation.json",
+        "sha256": "de4d181d140785565bc43463c568d6779e295305c32585db6ee252ef162ae810",
+        "bytes": 245195
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\docs\\reports\\2026-10-11-project-cognition-optimization-implementation.md",
+        "sha256": "5ac4ac3611c1842133718f6465e00a8655d90691b5f2082f9166fcccaef1aca4",
+        "bytes": 11451
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\src\\specify_cli\\integrations\\base.py",
+        "sha256": "5c3da394c319bd86d116387ce71c4f545e8ebdccf6b485d1530463fb865bfcc3",
+        "bytes": 217458
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\src\\specify_cli\\integrations\\claude\\__init__.py",
+        "sha256": "38fb9f07f46fb2e59b44faae91fe942c17fcf78fb8b19fe4d7e651b5c9867831",
+        "bytes": 41581
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\src\\specify_cli\\specify_runtime.py",
+        "sha256": "3c95e92934e22b97ce269b99d634d38652450ea7d3cad5c8b51b7c4206ebd428",
+        "bytes": 65744
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\templates\\advanced-skills\\_shared\\project-cognition-closeout.md",
+        "sha256": "55c96b28a2f81d4be70af45f8a85e9833ac594baf3d272584d374dd767bfffd7",
+        "bytes": 8780
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\templates\\advanced-skills\\_shared\\project-cognition-semantic-audit.md",
+        "sha256": "3229b94a259a3ea431ceb3cfb603fc167722dc317370c2913dcbf4b74fb51db1",
+        "bytes": 2142
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\templates\\advanced-skills\\_shared\\project-cognition.md",
+        "sha256": "b21fa82442da23ad663020843b015afc4a86bbc887f6e16a15c2ce51cd2e8b36",
+        "bytes": 13252
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\templates\\advanced-skills\\_shared\\surface-map.json",
+        "sha256": "dc9e7d47e2547ed61af4c008f405ee994c3e992583f958637e2326afde886408",
+        "bytes": 11934
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\templates\\advanced-skills\\spx-map-build\\SKILL.md",
+        "sha256": "4b45931c53f25721ea3c4821a9f1e1aa2623683074abd29f7e7d1c046f606f65",
+        "bytes": 3373
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\templates\\command-partials\\ask\\shell.md",
+        "sha256": "9ae2a79e87c67984143af38c1e9e8dcb1272e2e8795accfac3a798af9eaa352a",
+        "bytes": 11287
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\templates\\command-partials\\common\\cognition-reuse-and-paging.md",
+        "sha256": "a92b83d753a551d96fd10c8fe9f8aab245eeee95c92c15f409ac19a84775c5b5",
+        "bytes": 6898
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\templates\\command-partials\\common\\context-loading-gradient.md",
+        "sha256": "0a92077d0ab923359a8dd5c996e2b63ac9620f0a44790ec1aa69ce5ffee4a8f1",
+        "bytes": 25156
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\templates\\command-partials\\common\\learning-layer.md",
+        "sha256": "a3460f52d83d32a06d9e21765e36f8632d095d60e9b25d832e16d2a03d6ada89",
+        "bytes": 7649
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\templates\\command-partials\\common\\planning-cognition.md",
+        "sha256": "4eb9e1c9d81fbb5121f3cb46117f76bfdb6476afd40bf9fff6de3f843c418ebe",
+        "bytes": 4622
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\templates\\command-partials\\common\\planning-context-loading-gradient.md",
+        "sha256": "f965bf853337778a6980fb050318f22a8ab759b89cd9f13cdfa63712f0e060b0",
+        "bytes": 23422
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\templates\\commands\\map-build.md",
+        "sha256": "b5910c148f16de8e4e7576d5b78117b4ef794208510a752c5aa7626828dd4be3",
+        "bytes": 30455
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\templates\\passive-skills\\spec-kit-project-cognition-gate\\SKILL.md",
+        "sha256": "416b5884d714009016b34c6c638a04b363d8ca05d2f4022ed6deefbefd2dc1ff",
+        "bytes": 30838
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\templates\\passive-skills\\spec-kit-project-cognition-gate\\references\\project-cognition-closeout.md",
+        "sha256": "68b1bc791e8eac72ed2aecaa61dad7e7fd97286043cf2c8b337ebd51f4d0cda0",
+        "bytes": 6510
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\templates\\project-handbook-template.md",
+        "sha256": "9ba8445bbebd56564342a45e84d86a4b7e486f0719a77d9fab224cd2b8655046",
+        "bytes": 74790
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tests\\e2e_samples\\cognition_runtime_probe.py",
+        "sha256": "546f1f0c7a48ceff0ff722d8139499e1fe24e34d983277596916b9ccbae99034",
+        "bytes": 15210
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tests\\template_utils.py",
+        "sha256": "d9825d1491d32d8a8f241ea03021b5dcd7aab6fb1f96bcd5f1bf30ee668a165e",
+        "bytes": 4576
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tests\\test_alignment_templates.py",
+        "sha256": "2d8fdcfb55183e1b8329eec235eb235ab7555d3947511a6ca383815b83b301d4",
+        "bytes": 296924
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tests\\test_cognition_eval.py",
+        "sha256": "10b149f0b99a361821af9c0fa29e9ddf82e8c8e679913d0eb18badff3d6b5c61",
+        "bytes": 24698
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tests\\test_do_launcher.py",
+        "sha256": "a47f6bb80a227980793ed639022cd031edb9e96d40f59204eabe90ffab870454",
+        "bytes": 4055
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tests\\test_project_cognition_closeout_generation.py",
+        "sha256": "253845e94326551f1a5531ea1283f751a4a3e97e2df2b61e30773d799b4e7a3e",
+        "bytes": 26495
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tests\\test_project_cognition_conditional_guidance.py",
+        "sha256": "f071221fb10682b91df1b363547ecf3add80b4af2d006d87cf080b8113281b9a",
+        "bytes": 12151
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tests\\test_project_cognition_progressive_guidance.py",
+        "sha256": "90d233158a62e7912484b92deed79195c6789b8aa1165e539eb8f6b9f4d854c3",
+        "bytes": 7187
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tests\\test_project_cognition_runtime_install.py",
+        "sha256": "8aa6b0e957d7f19d7d756aaabe3eaa24c2d86be9346b3052d3d7eea78a6ddbe4",
+        "bytes": 16038
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tests\\test_specify_runtime.py",
+        "sha256": "9228162add9fba7a427d381eb2ba2cca42e6c9858148be5ccac2958342be8fd5",
+        "bytes": 47411
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tests\\test_spx_skill.py",
+        "sha256": "f87365e02904e8fcdf543451d7fcbf24315ae41538ecfb4948b01b555d84fac4",
+        "bytes": 92324
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\agent_schema.go",
+        "sha256": "a76dffdc12da62b86e1358f998bb2067e2606fc779f83a3eba721b02cef85ea2",
+        "bytes": 128677
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\cognition_api_test.go",
+        "sha256": "99126f4258c5efaefde353facce8742123b25df273d8e66f82e1a5ba9be649c2",
+        "bytes": 3208
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\install.ps1",
+        "sha256": "b7c56c169ed3bff7812771a5f85490e9e4afa1f7428e6f0b40b37203ec722886",
+        "bytes": 8983
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\install.sh",
+        "sha256": "f1d179d707ce8c1dfdfea19ca84ab6f3c127dad67ba023052b18a072eec8f1c0",
+        "bytes": 7599
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\cli\\archive_store.go",
+        "sha256": "14b3fb01e7d217bea42d7417f4efba4aa40420dc3b9ffb4fba1a745657c39f20",
+        "bytes": 7168
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\cli\\archive_store_test.go",
+        "sha256": "04fbe9b655763f994574068cb03b9fd291a115eef2c67879af724fd0cc001f9e",
+        "bytes": 5685
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\cli\\cli.go",
+        "sha256": "1e08f0b8f922b8176ad1f9104307e2699eeaa2f767a8fe3722a6cdb840f728ac",
+        "bytes": 93650
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\cli\\lexicon_paging_test.go",
+        "sha256": "a317475b355016a2067630ced03978612d9069d5086429cc79dfb2196ab4fa3c",
+        "bytes": 1721
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\query\\claim_paging_test.go",
+        "sha256": "2a5b51443ca8d25467c9092b77ae6b3651c6cd7365879d9a595c25e19072c895",
+        "bytes": 10601
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\query\\compass.go",
+        "sha256": "7e4a1e3e0a73af3bbfd8a331705e1602eeec77028a708363a97b4ccbe340177b",
+        "bytes": 54310
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\query\\epistemic_contract_test.go",
+        "sha256": "3301044345848059d8066aa5646ff6a081c868b8603b173fdadb572463818b7b",
+        "bytes": 5029
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\query\\expansion.go",
+        "sha256": "f27afdceebc72a54219fed63a8ab93fff51cbfc593328f583ce40ce6099816bd",
+        "bytes": 28659
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\query\\expansion_snapshot_test.go",
+        "sha256": "850c3d9e350cdd771bfdf4dd94a0ea20a8849fd6d474a81e89479f1e346d86a8",
+        "bytes": 14680
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\query\\expansion_test.go",
+        "sha256": "07b7551309d6ecb4c7a514fbe78753b1902a33b4f767b856e800419704b56812",
+        "bytes": 14999
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\query\\lexicon.go",
+        "sha256": "f592066ed5b6db5b81333fcbefed0272495ef7b52af8bd0cc0061af7058f91b3",
+        "bytes": 23403
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\query\\lexicon_paging_test.go",
+        "sha256": "434514aac3463a34fbf752719838470ddd48d2c7e97d6d874ef40f7347685469",
+        "bytes": 5531
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\runtime\\status.go",
+        "sha256": "72906e4821f191bc59640f1ad7665048536f7136b21f7fa5c3cbf0e6602d177d",
+        "bytes": 13318
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\runtime\\status_test.go",
+        "sha256": "d4f76e6fcb111d00273f02263f7db52b3c385870242548cf6a5d74262b3bc055",
+        "bytes": 9097
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\scanworkbench\\scan_cache.go",
+        "sha256": "6f9255b32a567e7e1f3e398f0d280fecd85c654a19190f0f26f5d5e139f364e5",
+        "bytes": 44843
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\scanworkbench\\scanworkbench.go",
+        "sha256": "399d2a47dd715ec73a48e33bf8006f3d40394408ba67c69cb35e8718320100f4",
+        "bytes": 83899
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\scanworkbench\\source_digest_test.go",
+        "sha256": "0fda6f2bed5e8f23fcb45bb9a7be4275f341d40481ae638a83cb270a488bba88",
+        "bytes": 3884
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\store\\candidate_rows.go",
+        "sha256": "2907a654b9252c0cafa5d3498697c6c59683f937c29120e0e6085c9bdef2fd00",
+        "bytes": 6728
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\store\\candidate_rows_test.go",
+        "sha256": "5c8b7689a3d3854b04aa15c9caab536ebce01694205126bfbb9b9028a80698bc",
+        "bytes": 7347
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\store\\claim_page.go",
+        "sha256": "d2c035692ec1f5aa42832df5c5c78e82441bc8293f637cd38a323a27d19a58fc",
+        "bytes": 4242
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\store\\guarded_recovery_test.go",
+        "sha256": "a7f2370d2f58b4fe0a1fc5dd4d6d74161431520d753525ee47bddba478de11da",
+        "bytes": 1683
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\store\\navigation_snapshot.go",
+        "sha256": "8dc7cb0ed1bf8b8b2b936fe74615cc91d76cf7e0f6aa1b705e02be9dc9ada31c",
+        "bytes": 5556
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\store\\navigation_snapshot_test.go",
+        "sha256": "0d4bcf57cead0e61086ab7eb41fa370569acf728b6dbcf6f0c529f3b0adb82cc",
+        "bytes": 5652
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\internal\\store\\store.go",
+        "sha256": "89117b5d99b6f864d486999f65abdb6ca195f87f89bc9e1bc580af359921f32a",
+        "bytes": 56515
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\specify-runtime\\main.go",
+        "sha256": "f83720e3422d21039df3c2d1b6bd3cc8b6b20298b950578081ea336984382d38",
+        "bytes": 74084
+      },
+      {
+        "path": "F:\\github\\spec-kit-plus\\tools\\workflow-quality\\cognition_eval.py",
+        "sha256": "a0f5ae57a31df0ca52d39600da5571a539d3b5c66c46330c65c84344780e6226",
+        "bytes": 43429
+      }
+    ],
+    "source_preservation_summary": {
+      "canonical_taskstart_paths": 1823,
+      "unchanged": 1784,
+      "authorized_changed": 39,
+      "missing": 0,
+      "prior_e2e_manifest_equal_taskstart": true,
+      "prior_do_paths": 58,
+      "prior_do_taskstart_unchanged": 51,
+      "prior_do_authorized_shared_deltas": 7,
+      "directly_named_e2e_paths_unchanged": 58,
+      "accepted_current_groups": {
+        "x1b_product_1359": 1359,
+        "x1b_current_python_17": 17,
+        "x1a_native_compile_214": 214,
+        "c4v4_owners_16": 16,
+        "c4_root_docs_2": 2,
+        "c5_unchanged_test_owners_2": 2
+      },
+      "all39_current_digests_found_in_accepted_groups": true
+    },
+    "local_cost_numeric_fields_independently_recomputed": 38,
+    "native_asset_policy": {
+      "exact_argv": [
+        "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1a-frozen\\specify-runtime.exe",
+        "assets",
+        "check",
+        "--project-root",
+        "F:\\github\\spec-kit-plus",
+        "--format",
+        "json",
+        "--path",
+        "PROJECT-HANDBOOK.md",
+        "--path",
+        "README.md",
+        "--path",
+        "docs/reports/2026-10-11-project-cognition-evaluation.json",
+        "--path",
+        "docs/reports/2026-10-11-project-cognition-optimization-implementation.md",
+        "--path",
+        "docs/reports/2026-10-11-project-cognition-replay.zip",
+        "--path",
+        "src/specify_cli/integrations/base.py",
+        "--path",
+        "src/specify_cli/integrations/claude/__init__.py",
+        "--path",
+        "src/specify_cli/specify_runtime.py",
+        "--path",
+        "templates/advanced-skills/_shared/project-cognition-closeout.md",
+        "--path",
+        "templates/advanced-skills/_shared/project-cognition-semantic-audit.md",
+        "--path",
+        "templates/advanced-skills/_shared/project-cognition.md",
+        "--path",
+        "templates/advanced-skills/_shared/surface-map.json",
+        "--path",
+        "templates/advanced-skills/spx-map-build/SKILL.md",
+        "--path",
+        "templates/command-partials/ask/shell.md",
+        "--path",
+        "templates/command-partials/common/cognition-reuse-and-paging.md",
+        "--path",
+        "templates/command-partials/common/context-loading-gradient.md",
+        "--path",
+        "templates/command-partials/common/learning-layer.md",
+        "--path",
+        "templates/command-partials/common/planning-cognition.md",
+        "--path",
+        "templates/command-partials/common/planning-context-loading-gradient.md",
+        "--path",
+        "templates/commands/map-build.md",
+        "--path",
+        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+        "--path",
+        "templates/passive-skills/spec-kit-project-cognition-gate/references/project-cognition-closeout.md",
+        "--path",
+        "templates/project-handbook-template.md",
+        "--path",
+        "tests/e2e_samples/cognition_runtime_probe.py",
+        "--path",
+        "tests/template_utils.py",
+        "--path",
+        "tests/test_alignment_templates.py",
+        "--path",
+        "tests/test_cognition_eval.py",
+        "--path",
+        "tests/test_do_launcher.py",
+        "--path",
+        "tests/test_project_cognition_closeout_generation.py",
+        "--path",
+        "tests/test_project_cognition_conditional_guidance.py",
+        "--path",
+        "tests/test_project_cognition_progressive_guidance.py",
+        "--path",
+        "tests/test_project_cognition_runtime_install.py",
+        "--path",
+        "tests/test_specify_runtime.py",
+        "--path",
+        "tests/test_spx_skill.py",
+        "--path",
+        "tools/specify-runtime/agent_schema.go",
+        "--path",
+        "tools/specify-runtime/cognition_api_test.go",
+        "--path",
+        "tools/specify-runtime/install.ps1",
+        "--path",
+        "tools/specify-runtime/install.sh",
+        "--path",
+        "tools/specify-runtime/internal/cli/archive_store.go",
+        "--path",
+        "tools/specify-runtime/internal/cli/archive_store_test.go",
+        "--path",
+        "tools/specify-runtime/internal/cli/cli.go",
+        "--path",
+        "tools/specify-runtime/internal/cli/lexicon_paging_test.go",
+        "--path",
+        "tools/specify-runtime/internal/query/claim_paging_test.go",
+        "--path",
+        "tools/specify-runtime/internal/query/compass.go",
+        "--path",
+        "tools/specify-runtime/internal/query/epistemic_contract_test.go",
+        "--path",
+        "tools/specify-runtime/internal/query/expansion.go",
+        "--path",
+        "tools/specify-runtime/internal/query/expansion_snapshot_test.go",
+        "--path",
+        "tools/specify-runtime/internal/query/expansion_test.go",
+        "--path",
+        "tools/specify-runtime/internal/query/lexicon.go",
+        "--path",
+        "tools/specify-runtime/internal/query/lexicon_paging_test.go",
+        "--path",
+        "tools/specify-runtime/internal/runtime/status.go",
+        "--path",
+        "tools/specify-runtime/internal/runtime/status_test.go",
+        "--path",
+        "tools/specify-runtime/internal/scanworkbench/scan_cache.go",
+        "--path",
+        "tools/specify-runtime/internal/scanworkbench/scanworkbench.go",
+        "--path",
+        "tools/specify-runtime/internal/scanworkbench/source_digest_test.go",
+        "--path",
+        "tools/specify-runtime/internal/store/candidate_rows.go",
+        "--path",
+        "tools/specify-runtime/internal/store/candidate_rows_test.go",
+        "--path",
+        "tools/specify-runtime/internal/store/claim_page.go",
+        "--path",
+        "tools/specify-runtime/internal/store/guarded_recovery_test.go",
+        "--path",
+        "tools/specify-runtime/internal/store/navigation_snapshot.go",
+        "--path",
+        "tools/specify-runtime/internal/store/navigation_snapshot_test.go",
+        "--path",
+        "tools/specify-runtime/internal/store/store.go",
+        "--path",
+        "tools/specify-runtime/main.go",
+        "--path",
+        "tools/workflow-quality/cognition_eval.py"
+      ],
+      "exit_code": 0,
+      "parsed_stdout": {
+        "blockers": [],
+        "data": {
+          "checked": 64,
+          "content_checked": 3,
+          "deleted_paths": [],
+          "inbound_documents_checked": 0,
+          "path_only": false,
+          "policy_path": ".asset-policy.json",
+          "scope": "worktree",
+          "violation_count": 0
+        },
+        "items": [],
+        "next_argv": [],
+        "show_argv": [],
+        "status": "ok",
+        "summary": "asset policy check passed for the selected scope"
+      },
+      "required_paths": [
+        "PROJECT-HANDBOOK.md",
+        "README.md",
+        "docs/reports/2026-10-11-project-cognition-evaluation.json",
+        "docs/reports/2026-10-11-project-cognition-optimization-implementation.md",
+        "docs/reports/2026-10-11-project-cognition-replay.zip",
+        "src/specify_cli/integrations/base.py",
+        "src/specify_cli/integrations/claude/__init__.py",
+        "src/specify_cli/specify_runtime.py",
+        "templates/advanced-skills/_shared/project-cognition-closeout.md",
+        "templates/advanced-skills/_shared/project-cognition-semantic-audit.md",
+        "templates/advanced-skills/_shared/project-cognition.md",
+        "templates/advanced-skills/_shared/surface-map.json",
+        "templates/advanced-skills/spx-map-build/SKILL.md",
+        "templates/command-partials/ask/shell.md",
+        "templates/command-partials/common/cognition-reuse-and-paging.md",
+        "templates/command-partials/common/context-loading-gradient.md",
+        "templates/command-partials/common/learning-layer.md",
+        "templates/command-partials/common/planning-cognition.md",
+        "templates/command-partials/common/planning-context-loading-gradient.md",
+        "templates/commands/map-build.md",
+        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+        "templates/passive-skills/spec-kit-project-cognition-gate/references/project-cognition-closeout.md",
+        "templates/project-handbook-template.md",
+        "tests/e2e_samples/cognition_runtime_probe.py",
+        "tests/template_utils.py",
+        "tests/test_alignment_templates.py",
+        "tests/test_cognition_eval.py",
+        "tests/test_do_launcher.py",
+        "tests/test_project_cognition_closeout_generation.py",
+        "tests/test_project_cognition_conditional_guidance.py",
+        "tests/test_project_cognition_progressive_guidance.py",
+        "tests/test_project_cognition_runtime_install.py",
+        "tests/test_specify_runtime.py",
+        "tests/test_spx_skill.py",
+        "tools/specify-runtime/agent_schema.go",
+        "tools/specify-runtime/cognition_api_test.go",
+        "tools/specify-runtime/install.ps1",
+        "tools/specify-runtime/install.sh",
+        "tools/specify-runtime/internal/cli/archive_store.go",
+        "tools/specify-runtime/internal/cli/archive_store_test.go",
+        "tools/specify-runtime/internal/cli/cli.go",
+        "tools/specify-runtime/internal/cli/lexicon_paging_test.go",
+        "tools/specify-runtime/internal/query/claim_paging_test.go",
+        "tools/specify-runtime/internal/query/compass.go",
+        "tools/specify-runtime/internal/query/epistemic_contract_test.go",
+        "tools/specify-runtime/internal/query/expansion.go",
+        "tools/specify-runtime/internal/query/expansion_snapshot_test.go",
+        "tools/specify-runtime/internal/query/expansion_test.go",
+        "tools/specify-runtime/internal/query/lexicon.go",
+        "tools/specify-runtime/internal/query/lexicon_paging_test.go",
+        "tools/specify-runtime/internal/runtime/status.go",
+        "tools/specify-runtime/internal/runtime/status_test.go",
+        "tools/specify-runtime/internal/scanworkbench/scan_cache.go",
+        "tools/specify-runtime/internal/scanworkbench/scanworkbench.go",
+        "tools/specify-runtime/internal/scanworkbench/source_digest_test.go",
+        "tools/specify-runtime/internal/store/candidate_rows.go",
+        "tools/specify-runtime/internal/store/candidate_rows_test.go",
+        "tools/specify-runtime/internal/store/claim_page.go",
+        "tools/specify-runtime/internal/store/guarded_recovery_test.go",
+        "tools/specify-runtime/internal/store/navigation_snapshot.go",
+        "tools/specify-runtime/internal/store/navigation_snapshot_test.go",
+        "tools/specify-runtime/internal/store/store.go",
+        "tools/specify-runtime/main.go",
+        "tools/workflow-quality/cognition_eval.py"
+      ]
+    },
+    "native_git_diff_check": {
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "stdout_utf8": "",
+      "stderr_utf8": "warning: in the working copy of 'templates/advanced-skills/_shared/project-cognition.md', CRLF will be replaced by LF the next time Git touches it\nwarning: in the working copy of 'templates/advanced-skills/_shared/surface-map.json', CRLF will be replaced by LF the next time Git touches it\nwarning: in the working copy of 'templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md', CRLF will be replaced by LF the next time Git touches it\nwarning: in the working copy of 'tests/e2e_samples/wheel_install_probe.py', CRLF will be replaced by LF the next time Git touches it\nwarning: in the working copy of 'tests/integrations/test_e2e_installation.py', CRLF will be replaced by LF the next time Git touches it\nwarning: in the working copy of 'tests/test_alignment_templates.py', CRLF will be replaced by LF the next time Git touches it\nwarning: in the working copy of 'tests/test_project_cognition_closeout_generation.py', CRLF will be replaced by LF the next time Git touches it\nwarning: in the working copy of 'tests/test_spx_skill.py', CRLF will be replaced by LF the next time Git touches it\n"
+    },
+    "all63_current_whitespace": {
+      "utf8_decoded": 63,
+      "trailing_lines": 0,
+      "missing_final_newlines": 0
+    },
+    "fresh_final_report_markdownlint": {
+      "argv": [
+        "node",
+        "F:\\github\\spec-kit-plus\\.codex-tmp\\sp-e2e-implementation\\markdownlint-tool\\node_modules\\markdownlint-cli2\\markdownlint-cli2-bin.mjs",
+        "F:\\github\\spec-kit-plus\\docs\\reports\\2026-10-11-project-cognition-optimization-implementation.md"
+      ],
+      "exit_code": 0,
+      "stdout_utf8": "markdownlint-cli2 v0.23.3 (markdownlint v0.41.1)\nFinding: F:/github/spec-kit-plus/docs/reports/2026-10-11-project-cognition-optimization-implementation.md !.genreleases/\nLinting: 1 file\nSummary: 0 issues in 0 files\n",
+      "stderr_utf8": ""
+    },
+    "archive_manifest": {
+      "sha256": "6f889b513c573daf5d87ed03e72b572c3a254d5626b9b37aa2dcfd0ce7ce4516",
+      "bytes": 28758926,
+      "limit_bytes": 33554432,
+      "input_spec_sha256": "f4d6baf1ad0290a1897223bca84443ddee9c08370620b273ed11c082d572fed4"
+    },
+    "complete_archive_verify_stdout": {
+      "schema": "cognition-replay-opaque-v1",
+      "integrity_valid": true,
+      "evidence_complete": true,
+      "records": 34996,
+      "unique_blobs": 6640,
+      "source_bytes": 2087788001,
+      "unique_blob_bytes": 602064466,
+      "unresolved_records": 0,
+      "claim_boundary": "Opaque recorded-byte integrity only; no model or semantic acceptance."
+    },
+    "complete_fresh_hydration": {
+      "native_exit_code": 0,
+      "mapping_count": 34996,
+      "all_original_expected_bytes_verified_during_copy": true,
+      "required_current_aliases": 34394,
+      "selected_model_records_independently_rehashed": 240,
+      "required_current_C6b_refs": 10549,
+      "immutable_BEFORE_bindings": 4712,
+      "original_records_rewritten": false
+    },
+    "derived_native_smokes": [
+      {
+        "phase": "before",
+        "kind": "version",
+        "exact_argv": [
+          "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\portable-current\\native-before\\specify-runtime.exe",
+          "version",
+          "--format",
+          "json"
+        ],
+        "cwd": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\portable-current\\native-before",
+        "native_exit_code": 0,
+        "binary_sha256": "2b45c020b06348202d3715e1bd56c3b228f6e99b4e4bd20034a42b2697f82761",
+        "stdout": {
+          "blockers": [],
+          "data": {
+            "cli_version": "dev",
+            "cognition_schema_version": 5,
+            "dirty": true,
+            "protocol_version": "specify-runtime.v1",
+            "source_revision": "d9fa9766b9255ef0fcfa2585a996bfe73b284ba8"
+          },
+          "items": [],
+          "next_argv": [],
+          "show_argv": [],
+          "status": "ok",
+          "summary": "runtime version"
+        },
+        "stderr_utf8": "",
+        "scope": "derived recovered binary, not actual model observation or original ABS-bound graph query"
+      },
+      {
+        "phase": "before",
+        "kind": "ensure",
+        "exact_argv": [
+          "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\portable-current\\native-before\\specify-runtime.exe",
+          "api",
+          "ensure",
+          "--capabilities",
+          "cognition.expansion.snapshot.v2,cognition.claim-evidence.page.v1,cognition.catalog.snapshot.v1",
+          "--format",
+          "json"
+        ],
+        "cwd": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\portable-current\\native-before",
+        "native_exit_code": 10,
+        "binary_sha256": "2b45c020b06348202d3715e1bd56c3b228f6e99b4e4bd20034a42b2697f82761",
+        "stdout": {
+          "blockers": [],
+          "data": {
+            "capability_set_sha256": "2a7369e5f4ceaaf6109ef10d0826e547c6494befd572e40546d80d4365fa53be",
+            "missing": [
+              "cognition.expansion.snapshot.v2",
+              "cognition.claim-evidence.page.v1",
+              "cognition.catalog.snapshot.v1"
+            ],
+            "present": [],
+            "requested": [
+              "cognition.expansion.snapshot.v2",
+              "cognition.claim-evidence.page.v1",
+              "cognition.catalog.snapshot.v1"
+            ],
+            "runtime": {
+              "capability_set_id": "2a7369e5f4ceaaf6109ef10d0826e547c6494befd572e40546d80d4365fa53be",
+              "cli_version": "dev",
+              "dirty": true,
+              "protocol_version": "specify-runtime.v1",
+              "source_revision": "d9fa9766b9255ef0fcfa2585a996bfe73b284ba8"
+            }
+          },
+          "items": [],
+          "next_argv": [],
+          "show_argv": [
+            "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\portable-current\\native-before\\specify-runtime.exe",
+            "api",
+            "list",
+            "--format",
+            "json"
+          ],
+          "status": "blocked",
+          "summary": "requested capabilities are missing"
+        },
+        "stderr_utf8": "",
+        "scope": "derived recovered binary, not actual model observation or original ABS-bound graph query"
+      },
+      {
+        "phase": "after",
+        "kind": "version",
+        "exact_argv": [
+          "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\portable-current\\native-after\\specify-runtime.exe",
+          "version",
+          "--format",
+          "json"
+        ],
+        "cwd": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\portable-current\\native-after",
+        "native_exit_code": 0,
+        "binary_sha256": "2b95047af8cf4e6a6a8ddc5e63540a6ec2fa72c201aeb8cd641d6d79eefc2d56",
+        "stdout": {
+          "blockers": [],
+          "data": {
+            "cli_version": "dev",
+            "cognition_schema_version": 5,
+            "dirty": true,
+            "protocol_version": "specify-runtime.v1",
+            "source_revision": "d9fa9766b9255ef0fcfa2585a996bfe73b284ba8"
+          },
+          "items": [],
+          "next_argv": [],
+          "show_argv": [],
+          "status": "ok",
+          "summary": "runtime version"
+        },
+        "stderr_utf8": "",
+        "scope": "derived recovered binary, not actual model observation or original ABS-bound graph query"
+      },
+      {
+        "phase": "after",
+        "kind": "ensure",
+        "exact_argv": [
+          "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\portable-current\\native-after\\specify-runtime.exe",
+          "api",
+          "ensure",
+          "--capabilities",
+          "cognition.expansion.snapshot.v2,cognition.claim-evidence.page.v1,cognition.catalog.snapshot.v1",
+          "--format",
+          "json"
+        ],
+        "cwd": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\portable-current\\native-after",
+        "native_exit_code": 0,
+        "binary_sha256": "2b95047af8cf4e6a6a8ddc5e63540a6ec2fa72c201aeb8cd641d6d79eefc2d56",
+        "stdout": {
+          "blockers": [],
+          "data": {
+            "capability_set_sha256": "338a99c1df77907fb3c277d0a1c628337565a3361a796c97c8d77e9d91d33dcd",
+            "missing": [],
+            "present": [
+              "cognition.expansion.snapshot.v2",
+              "cognition.claim-evidence.page.v1",
+              "cognition.catalog.snapshot.v1"
+            ],
+            "requested": [
+              "cognition.expansion.snapshot.v2",
+              "cognition.claim-evidence.page.v1",
+              "cognition.catalog.snapshot.v1"
+            ],
+            "runtime": {
+              "capability_set_id": "338a99c1df77907fb3c277d0a1c628337565a3361a796c97c8d77e9d91d33dcd",
+              "cli_version": "dev",
+              "dirty": true,
+              "protocol_version": "specify-runtime.v1",
+              "source_revision": "d9fa9766b9255ef0fcfa2585a996bfe73b284ba8"
+            }
+          },
+          "items": [],
+          "next_argv": [],
+          "show_argv": [
+            "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\portable-current\\native-after\\specify-runtime.exe",
+            "api",
+            "list",
+            "--format",
+            "json"
+          ],
+          "status": "ok",
+          "summary": "requested capabilities are available"
+        },
+        "stderr_utf8": "",
+        "scope": "derived recovered binary, not actual model observation or original ABS-bound graph query"
+      }
+    ],
+    "metadata_only_repair_proof": {
+      "parsed_manifest": true,
+      "input_spec_bytes": true,
+      "same_member_set": true,
+      "independently_stream_hashed_old_and_new_blob_pairs": 6640,
+      "compact_manifest_bytes": 28758926,
+      "pretty_manifest_bytes": 33819602,
+      "compact_manifest_sha256": "6f889b513c573daf5d87ed03e72b572c3a254d5626b9b37aa2dcfd0ce7ce4516"
+    },
+    "historical_archive_status": {
+      "original_stale_refs": 61,
+      "matching_alternative_bytes": 43,
+      "unrecovered": 18,
+      "excluded_incidental_caches": 108,
+      "extra_finalization_context_rows": 7,
+      "old_path_restore_claim": false
+    },
+    "initial_archive_failure": {
+      "archive_sha256": "e448c2f9edb53747d2f2f52d8070a92c128453a27909650b607366e595689871",
+      "archive_bytes": 260765261,
+      "manifest_bytes": 33819602,
+      "reader_limit_bytes": 33554432,
+      "writer_exit_code": 0,
+      "independent_reader_exit_code": 2,
+      "reader_stdout": {
+        "integrity_valid": false,
+        "evidence_complete": false,
+        "refusal": "missing or oversized metadata: manifest.json"
+      },
+      "recovery": "New ZIP changes only manifest JSON whitespace; all34996 parsed rows and inputspec equal, all6640 old/new blob pairs independently streamed and match content hashes. Original failed ZIP and native0/2 logs retained locally; failure facts embedded here."
+    }
+  },
+  "private_validator_probe_repairs": [
+    {
+      "observed": "Initial finalizer incorrectly required input-spec-final.json to also be an opaque alias. It is already the exact input-spec.json ZIP metadata member, not a missing evidence file. Corrected only validation presentation, retained failed script, no archive/source/record edits."
+    }
+  ],
+  "post_archive_probe_provenance": [
+    {
+      "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\portable-archive-validation.json",
+      "sha256": "50067e606c8c3d0cca73b3b8623c12d47e01868a4eb7fb6f8970ef76a8957246",
+      "bytes": 179237
+    },
+    {
+      "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\archive-packet-join.json",
+      "sha256": "aa32c6d37dc403600ad64035b6a500c6e3dd3a0ac5599d33d4e42b6ee26e74bd",
+      "bytes": 30371
+    },
+    {
+      "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\final-exact-scope.json",
+      "sha256": "8af62c2f7e19531158d93e4693e85df1ff5067f1415afb5292f85ad4bddd3a60",
+      "bytes": 38931
+    },
+    {
+      "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-validation\\archive-v1-rejection.json",
+      "sha256": "e9b8ca3602a023f799c5d30f6893c4a57bad6aaa047a4c25c8821e6d2ecc4422",
+      "bytes": 2206
+    }
+  ],
+  "limits": [
+    "Observed pilot navigation accuracy is88/120 to120/120, not arbitrary coding/build/deployment completion or a universal success rate. All four Classic condition medians and overall17.20s to19.09s regress; no overall speed/Learning/Playbook/reconciliation gain.",
+    "Each phase has3fresh actors warm across40episodes; setup prewarmed some caches. Native tokens, exact service model IDs, APIturn IDs and authenticated process identity unavailable; no P95. Same20logicalroles but source30to47 and18physical fact occurrences in8cells; source_changed also changes targetdirectory. No pure runtime causal claim.",
+    "Full all-attempt timing exists for119/120: one prestart failure has0.413433s tool time only. Two complete recovery intervals57.789194s/82.5232806s include gaps; one first/repeat overlap37.3822998s prevents summing episode totals as modelwork. Original failed calls/reads/encoding and metric doublecount repair preserved.",
+    "30 AFTER repeats require actual current Expand plus independently refreshed Learning=2calls and no Compass; BEFORE repeat already read0new sourcebytes. All120 paired Learning starts have no usable index/matches; isolated matching candidate experiment demonstrates boundary only, no auto-promote or actor Learning gain.",
+    "Original Python626617pass4fail5skip retained; repaired evidence does not rewrite aggregate. Windows file/dir symlink privileges and POSIX PATH isolation remain unverified; Bash configuration install is not a real Bash installer run, GUI/cloudCI/public distribution/anonymous consumer unverified.",
+    "Current archive integrity covers34996explicit rows and34394 required aliases, not all historical expectations.61 historical stale pathrefs include43samehashcopieselsewhere and18unavailable;108nonrequired cache aliases excluded and7finalization-context rows separately qualified. Initial P1 unexecuted testdbd2ca34026a230cb668e961e2a33cfd274cc9b163de60e3d1ca6022c1a3c4e1 remains unrecovered.",
+    "Accepted pack writer returned0 on first oversized manifest; accepted reader returned2 and refused it. Current usable ZIP is separately tested metadata-only compact serialization. This is not a general writer-size guarantee.",
+    "Original model/scorer/ABS-bound cognition fixture replay unsupported. Opaque byte hydration and four native capability/version checks are reproducible without recreating model choices or editing original records.",
+    "Actual local project map remains unsupported_legacy_runtime; no real DB parse/rebuild/archive/mutation, no map-ready claim. No commit/push/release/cloudCI/publication performed. Advisory cognition never authorizes mutation/final claim_ready.",
+    "Unrelated source preservation is established against explicit taskstart manifests and shared-owner original-byte proofs; arbitrary unsnapshotted temp/cache bytes are outside that claim."
+  ],
+  "reproduce_from_durable_files": [
+    "Verify SHA-256 of the report, evaluationJSON and ZIP against exact_durable_outputs before consuming any archive content.",
+    "Read manifest.json and extract only the known bootstrap blob e5cd7ea7d7cbbd1891acd76fd2705e140045ba2c449c8be2f42a405ac96a77ab to a new file in a trusted isolated directory. Follow archived bootstrap/replay-usage.md; never extractall or rewrite original records.",
+    "Run python <recovered-helper> verify --archive <absolute-ZIP>; expected integrity_valid=true/evidence_complete=true/34996records/6640blobs/0unresolved. Scope excludes separately qualified historical missing expectations.",
+    "Run python <recovered-helper> hydrate --archive <absolute-ZIP> --parent <trusted-existing-isolated-parent> --name <new-exclusive-child>. Every mapped file is a new opaque byte copy; original absolute strings stay unchanged.",
+    "Find original receipt/source/model evidence by original_path+expected_sha256 in manifest, or use archive_resolvable_support portable paths. Verify the240 original phase records and source mappings without resampling actors.",
+    "For derived native smoke copy old e/4736 (SHA2b45c020b06348202d3715e1bd56c3b228f6e99b4e4bd20034a42b2697f82761) and current e/11373 (SHA2b95047af8cf4e6a6a8ddc5e63540a6ec2fa72c201aeb8cd641d6d79eefc2d56) to new isolated .exe paths. Run version --format json then api ensure --capabilities cognition.expansion.snapshot.v2,cognition.claim-evidence.page.v1,cognition.catalog.snapshot.v1 --format json. Expect old0/10blocked, current0/0ok. This tests native compatibility only.",
+    "On this exact source revision rerun the embedded64-path assets argv, git diff --check and final report markdownlint as needed; platform gaps and broad-run failures remain explicitly recorded."
+  ],
+  "external_receipt_copy": {
+    "destination": "docs/reports/2026-10-11-project-cognition-acceptance.json",
+    "route": {
+      "path": "F:\\github\\spec-kit-plus\\.codex-tmp\\project-cognition-implementation\\x1-acceptance-route.json",
+      "sha256": "2467cecb03e0ab510b6b5f71da1f201b1b897e27b945cdb49a715026d5a46fcf",
+      "bytes": 797
+    },
+    "rule": "Root may copy this JSON byte-for-byte after acceptance. No selfhash or ZIP/report hashcycle. Check exact copy and four durable paths in a fresh post-copy receipt; do not rewrite this accepted receipt."
+  },
+  "resume": "Required original X1 implementation/integration rows accepted. Remaining leader delivery action is exact external receipt copy, post-copy policy/identity check and final ledger close; no further product/actor/source change authorized by this receipt."
+}

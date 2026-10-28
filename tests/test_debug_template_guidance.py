@@ -45,13 +45,14 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "causal_map_completed" in content
     assert "investigation_contract_completed" in content
     assert "log_investigation_plan_completed" in content
-    assert "do not enter reproduction, log review, test inspection, source-code reads, evidence collection, or fixing" in content
+    assert "do not enter reproduction, log review, test inspection, source-code reads, or evidence collection" in content
+    assert "`understanding_confirmed` is not a diagnosis prerequisite" in content
     assert "think subagent must not read source files" in content
     assert "think subagent must not inspect logs" in content
     assert "think subagent must not read test files" in content
     assert "the think subagent uses only the user report plus the current system map" in content
     assert "automatically continue into evidence investigation" in content
-    assert "hard gate" in content
+    assert "intake gate" in content
     assert "skip_observer_reason: map-backed-minimum-intake" in content
     assert "think subagent" in content
     assert "observer_framing_completed" in content
@@ -216,36 +217,33 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "user can agree or decline" not in content
 
 
-def test_debug_template_requires_understanding_checkpoint_before_investigation() -> None:
-    content = read_command_with_references("debug").lower()
+def test_debug_template_requires_evidence_backed_checkpoint_before_repair() -> None:
+    content = " ".join(read_command_with_references("debug").lower().split())
 
     assert "## debug understanding checkpoint" in content
     assert_debug_checkpoint_card_shape(content)
-    assert "user-owned facts and authority" in content
     assert "technical hypotheses belong to the agent" in content
-    assert "for awareness, not as a request to approve a hypothesis" in content
-    assert "first evidence action" in content
-    assert "fix gate" in content
-    assert "progress signal" in content
-    assert "where it appears, why it matters" in content
+    assert "decisive evidence" in content
+    assert "exact change at the owning layer" in content
+    assert "expected outcome, risks, and validation" in content
+    assert "where it appears, expected" in content
     assert "plain text for terminal output" in content
     assert "do not use html tags or inline line-break markup" in content
     assert "do not reuse the placeholder text as content" in content
     assert "<br>" not in content
-    assert "establish the repro or failing signal" not in content
-    assert "concrete failing signals, commands, logs, routes, affected workflows, constraints, and known uncertainty" in content
-    assert "unknown: [why it matters]" in content
-    assert "wait for user confirmation" in content
-    assert "not a fix-plan approval" in content
-    assert "not a root-cause claim" in content
+    assert "how it causes the reported symptom" in content
+    assert "inspectable references" in content
+    assert "unknown: reason" in content
+    assert "wait for explicit user confirmation before fix/source/test/harness/persistent" in content
+    assert "evidence-backed-repair" in content
+    assert "diagnostic-enablement" in content
     assert "understanding_confirmed: false" in content
     assert "understanding_confirmed: true" in content
-    assert (
-        "before reproduction commands, log review, source-code reads, test inspection, evidence collection, "
-        "instrumentation, code edits, fix work, or validation commands"
-    ) in content
-    assert "blocks evidence investigation on resume" in content
-    assert "only hand off to map maintenance after confirmation" in content
+    assert "confirmation_digest" in content
+    assert "legacy" in content
+    assert "before substantive investigation" not in content
+    assert "blocks evidence investigation on resume" not in content
+    assert "not a fix-plan approval" not in content
 
 
 def test_debug_session_template_tracks_understanding_checkpoint() -> None:
@@ -259,6 +257,19 @@ def test_debug_session_template_tracks_understanding_checkpoint() -> None:
     assert "expected_or_target:" in content
     assert "reproduction_or_failing_signal:" in content
     assert "known_evidence:" in content
+    for field in (
+        "confirmation_purpose: evidence-backed-repair",
+        "discovered_problem:",
+        "root_cause:",
+        "evidence_refs:",
+        "proposed_fix:",
+        "change_scope:",
+        "expected_outcome:",
+        "risks:",
+        "validation_plan:",
+        "confirmation_digest:",
+    ):
+        assert field in content, field
     assert "in_scope:" in content
     assert "out_of_scope:" in content
     assert "candidate_focus:" in content

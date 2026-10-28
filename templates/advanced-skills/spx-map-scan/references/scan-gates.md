@@ -114,8 +114,9 @@ Scan completion requires `validate-scan` with `status=ok` and
 identity, path-accounting, and evidence-reference defects as evidence-integrity
 blockers. The machine result sets `completion_allowed=false`,
 `bypass_allowed=false`, and
-`error_classification=scan_evidence_integrity`; report the typed recovery action
-and stop. Do not call them harmless format issues, hand off to build, normalize
+`error_classification=scan_evidence_integrity`; keep build handoff suspended and
+execute authorized stage-local typed recovery, repair and reaccept affected
+packets, then rerun validation in the same invocation. Do not call them harmless format issues, hand off to build, normalize
 the artifacts with a helper script, or bypass the gate.
 
 For a v2 workbench, successful validation writes `scan-receipt.json` bound to

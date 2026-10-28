@@ -2,7 +2,7 @@
 
 Read this reference for all `spx-*` workflows whenever intake, execution,
 validation, or recovery cannot immediately continue, before deciding to stop.
-Invoking a workflow authorizes necessary diagnosis, safe recovery, verification,
+Recover first while keeping the failed gate closed. Invoking a workflow authorizes necessary diagnosis, safe recovery, verification,
 and continuation within the current goal, available permissions, and allowed
 side effects. Do not ask for routine permission for an obvious reversible step.
 Apply the Recovery Decision in `.specify/templates/workflow-blocker-template.md`;
@@ -55,6 +55,30 @@ On a recoverable failure:
    workflow to its full completion criteria. Revalidate affected downstream
    evidence; repair success alone is not workflow completion.
 
+Match recovery to current evidence:
+
+- Missing inputs: locate and verify source artifacts, paths, tools, and documented
+  prerequisites; restore reproducible inputs through their owner. Never invent
+  requirements, approval, evidence, or accepted dependencies.
+- CLI/schema/revision errors: inspect installed API/help and current owner state,
+  correct the payload/binding, and use declared guarded recovery/resume actions.
+  Never edit runtime storage or reset state to clear a gate. Reconcile interrupted
+  processes and side effects before retrying.
+- Delegation: discover native capabilities, repair packets, redispatch failed
+  lanes, or serialize overlapping writes. Retain mandatory delegation and
+  independent acceptance; only the owning workflow may permit a fallback.
+- Validation: diagnose supported remaining defects after a failed autofix.
+  Read-only/review workflows keep their source-write boundary and route product
+  changes to their declared owner.
+- Advisory cognition: use bounded live evidence when permitted if navigation is
+  unavailable; required closeout still uses runtime-owned inspection/repair/replay.
+  Missing navigation cannot prove completion.
+
+Honor the user's verification budget: reuse unchanged valid evidence, run the
+narrowest meaningful repair check and interrupted gate, and avoid full suites
+or unrelated cleanup. Continue independent safe lanes while dependencies wait.
+Provide concise progress updates instead of asking routine repair permission.
+
 Only a proven boundary with no safe authorized agent action may stop: credentials
 or permission the Agent cannot obtain or request, a protected external system,
 an unauthorized external write, a human decision or review, physical access,
@@ -66,3 +90,8 @@ safe path may require a resumable incomplete result. Keep its real owner and
 `human_action_required: false` unless a specific human action is necessary.
 Never weaken acceptance criteria, skip mandatory checks, fabricate evidence,
 overwrite unrelated user changes, or label partial work complete.
+
+An immutable upstream contract needing a new user decision or an unavailable
+mandatory capability may require its declared handoff. Recovery grants no new stage authority,
+source-write permission, or cross-workflow invocation. Blocked state is resumable work,
+never successful completion.

@@ -27,10 +27,14 @@ is insufficient.
 The pre-intake routing result is strict:
 
 - **Insufficient: never show a branch menu.** Enter the full Debug branch and
-  perform its normal intake. Do not announce discovery, reproduction, or edits
-  before the full branch's own confirmation and execution gates.
+  perform its normal intake and bounded evidence investigation. Diagnosis may
+  begin after intake; repair waits for the evidence-backed repair confirmation
+  and execution gates.
 - **Sufficient:** show the exact scope, evidence, and fallback trigger, then ask
   exactly **Direct fix (Recommended)** or **Continue full sp-debug**.
+  Explain the discovered defect, proven mechanism, decisive evidence, concrete
+  repair, affected boundary, risks, and verification before the choice. Choosing
+  Direct fix approves that concrete repair; no second checkpoint is needed.
   Do not paraphrase these labels or add a third option.
 
 After the user's choice, read `references/context-sufficiency-choice.md` only
@@ -77,33 +81,55 @@ Debug state does not skip write coordination. Checkpoint validation and call
 `specify-runtime execution complete` only after fresh passing validation and
 terminal workflow state.
 
-Create or resume the session in its unconfirmed intake state. Render the Debug
-checkpoint from `references/human-confirmation.md` as readable headings and
-bullets; for an applicable UI symptom, fold its independent target-baseline
-state into the same checkpoint as `界面方向` without proposing a repair, then ask
-once for both decisions. Wait for user confirmation before reproduction, log review,
-source or test reads, evidence collection, delegation, instrumentation, code
-edits, or validation. Persist the main and UI confirmations separately and keep
-hypotheses in the agent investigation plan. After confirmation, reproduce the symptom or establish
-the strongest available failure signal before changing behavior. Use cognition
-to locate likely owners, boundaries, and verification surfaces, then confirm
-claims against logs, configuration, tests, runtime output, and live source.
+Start new or materially changed intake with `understanding_confirmed: false`;
+on resume, validate and reuse an unchanged exact repair approval without
+another confirmation, as the investigation contract requires. Understand the reported symptom, expected behavior,
+conditions, and investigation boundary;
+ask for missing facts only when they block the next safe evidence step. Complete
+the intake flags in `references/investigation-contract.md`, then inspect
+existing logs, configuration, source, and tests, run a low-risk existing
+reproduction, and delegate bounded read-only evidence lanes without an early
+approval checkpoint. Use cognition to narrow owners and verify its claims
+against live evidence. External effects and destructive actions retain their
+own authority gates. Before confirmation, do not change product or test files,
+repair a harness, add persistent instrumentation, or dispatch a fix worker.
 
 Maintain a small set of ranked hypotheses and choose evidence that separates
 them. Distinguish the visible symptom from the failure mechanism. Once evidence
-supports a root cause, apply the minimum coherent fix only after the automated
-RED gate in the investigation contract. When logs are insufficient, add bounded
-instrumentation or request a precise user-log packet instead of guessing.
+supports a root cause and a bounded repair, render the Debug Understanding
+Checkpoint from `references/human-confirmation.md` as readable headings and
+bullets. Explain the discovered defect and decisive evidence, concrete repair,
+affected boundary, expected result, risks, and verification. The user approves
+that repair, not the technical hypothesis. For UI symptoms, investigate against
+a provisional existing/source-backed target, then include the repair's formal
+target baseline as `界面方向` in this same checkpoint. Wait for the user's repair
+confirmation, persist the exact decision payload,
+`checkpoint.confirmation_purpose: evidence-backed-repair`,
+`confirmation_digest`, and separate UI state, then pass the automated RED gate
+before the minimum coherent fix.
+Old or generic intake confirmation is not repair authority on resume. When
+evidence cannot be obtained without changing a harness or adding persistent
+instrumentation, use the bounded `diagnostic-enablement` confirmation in the
+investigation contract; after that diagnostic work, investigate again and
+obtain `evidence-backed-repair` approval before repairing the product. Do not
+guess a cause or treat diagnostic authority as repair authority.
 
 Preserve the debug session if repair requires a harness, launcher, dependency,
 runner, generated tool, or other supporting control-plane change beyond the
-first fix scope. Expand the smallest registered causal scope and repair it
-inside the active Debug recovery lane; do not invoke another user-invoked
+first fix scope. If it materially changes the approved repair, obtain the
+bounded amendment before writes. Expand the smallest registered causal scope
+and repair it inside the active Debug recovery lane; do not invoke another user-invoked
 workflow automatically. Then resume the original reproduction and verification
 path in the same invocation. Scope growth, unfamiliar technology, or unavailable
 delegation alone cannot close the session as blocked.
 
-Re-run the original reproduction and relevant surrounding verification.
+Before final verification of repaired source, first call
+`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-debug --scope-dir <feature-or-scope> --scope-mode explicit --intent debug --format json}}`
+with explicit workflow-owned paths, then use its inputs to begin the native work/source binding
+from `references/project-cognition.md`. Re-run the original reproduction and
+relevant surrounding verification, then seal that exact binding with fresh tool
+observations. Human verification and lifecycle approval remain required; neither
+the source binding nor a passing test resolves the Debug session by itself.
 For a UI regression, reproduce and recapture the same real entry point,
 input event, data condition, viewport/continuous resize path, and state after
 the fix; source inspection or component tests cannot
@@ -115,9 +141,7 @@ directly.
 After agent verification and related-risk review, move to
 `awaiting_human_verify`; do not resolve or archive until explicit human
 confirmation. Only after the lifecycle rules in the investigation contract are
-satisfied, run
-`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-debug --scope-dir <feature-or-scope> --scope-mode explicit --intent debug --format json}}`
-with explicit workflow-owned paths, fill returned agent-owned fields, and execute
+satisfied, use the plan already obtained, fill returned agent-owned fields, and execute
 structured `apply_argv` before claiming the fix complete. Shared apply owns
 update, validation, eligible finalization, and receipt; only an update failure
 uses mark-dirty plus a standalone dirty receipt. Apply the gate in

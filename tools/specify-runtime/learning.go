@@ -37,8 +37,10 @@ var learningSignals = map[string]bool{"low": true, "medium": true, "high": true}
 var learningContextKeyMap = map[string]string{
 	"component": "components", "operation_owner": "operation_owners", "consumer_owner": "consumer_owners",
 	"outcome": "outcomes", "state": "states", "entrypoint": "entrypoints", "validation_surface": "validation_surfaces",
+	"constraint_file": "constraint_files", "counterevidence_file": "counterevidence_files",
 }
 var learningFacetKeys = []string{"components", "operation_owners", "consumer_owners", "outcomes", "states", "entrypoints", "validation_surfaces"}
+var learningContextKeys = append(append([]string{}, learningFacetKeys...), "constraint_files", "counterevidence_files")
 var mapWorkflowCommands = []string{"sp-map-scan", "sp-map-build", "sp-map-update", "sp-map-rebuild"}
 var knownLearningCommands = []string{
 	"sp-accept", "sp-analyze", "sp-ask", "sp-auto", "sp-checklist", "sp-constitution",
@@ -58,6 +60,7 @@ type learningService struct {
 	projectRoot     string
 	doSessionID     string
 	doWriteLockHeld bool
+	applicability   learningApplicabilityRequest
 }
 
 type learningPaths struct {
@@ -92,7 +95,7 @@ func runLearning(args []string, stdout io.Writer) int {
 	if len(args) == 0 {
 		return writeEnvelope(stdout, NewEnvelope("usage-error", "missing learning subcommand"))
 	}
-	service := learningService{projectRoot: optionValue(args, "--project-root", ".")}
+	service := learningService{projectRoot: optionValue(args, "--project-root", "."), applicability: learningApplicabilityRequestFromArgs(args)}
 	if command, err := normalizeLearningCommand(optionValue(args, "--command", "")); err == nil && command == "sp-do" {
 		service.doSessionID = optionValue(args, "--session-id", "")
 	}
@@ -128,7 +131,7 @@ func (service learningService) run(args []string) (Envelope, error) {
 		})
 		return learningDataEnvelope("learning list completed", data), err
 	case "show":
-		data, err := service.show(optionValue(args, "--ref", ""))
+		data, err := service.show(optionValue(args, "--ref", ""), parseLearningContexts(optionValues(args, "--context")))
 		return learningDataEnvelope("learning show completed", data), err
 	case "capture":
 		data, err := service.capture(learningCaptureRequest{
@@ -310,6 +313,14 @@ func (service learningService) start(commandName string, context map[string][]st
 		return nil, err
 	}
 	candidates := readLearningEntriesIfPresent(paths.candidates)
+	catalog, catalogWarnings, err := service.catalogWithPolicy(policy)
+	if err != nil {
+		return nil, err
+	}
+	catalogByKey := map[string]learningCatalogItem{}
+	for _, item := range catalog {
+		catalogByKey[stringFromAny(item.indexEntry["recurrence_key"])] = item
+	}
 	promotionReady := []any{}
 	needsConfirmation := []any{}
 	for _, entry := range candidates {
@@ -317,11 +328,13 @@ func (service learningService) start(commandName string, context map[string][]st
 		if !learningEntryRelevantToCommand(entry, normalized) {
 			continue
 		}
-		if intFromAny(entry["occurrence_count"]) >= 2 {
-			promotionReady = append(promotionReady, map[string]any{"ref": entry["recurrence_key"], "summary": entry["summary"], "occurrences": entry["occurrence_count"]})
+		item := catalogByKey[stringFromAny(entry["recurrence_key"])]
+		applicability := compactLearningApplicability(service.catalogLearningApplicability(item, entry, context, policy))
+		if intFromAny(entry["occurrence_count"]) >= 2 && applicability["state"] != "rejected" {
+			promotionReady = append(promotionReady, map[string]any{"ref": entry["recurrence_key"], "summary": entry["summary"], "occurrences": entry["occurrence_count"], "applicability": applicability})
 		}
 		if learningHighestSignal(entry) {
-			needsConfirmation = append(needsConfirmation, map[string]any{"ref": entry["recurrence_key"], "summary": entry["summary"], "signal": entry["signal_strength"]})
+			needsConfirmation = append(needsConfirmation, map[string]any{"ref": entry["recurrence_key"], "summary": entry["summary"], "signal": entry["signal_strength"], "applicability": applicability})
 		}
 	}
 	payload := map[string]any{
@@ -334,7 +347,7 @@ func (service learningService) start(commandName string, context map[string][]st
 		"pagination":         list["pagination"],
 		"promotion_ready":    promotionReady,
 		"needs_confirmation": needsConfirmation,
-		"warnings":           list["warnings"],
+		"warnings":           stringsToAny(uniqueSortedTrimmed(append(anyStringSlice(list["warnings"]), catalogWarnings...))),
 	}
 	if len(context) > 0 {
 		payload["task_context"] = context
@@ -410,7 +423,11 @@ func (service learningService) list(request learningListRequest) (map[string]any
 		if query != "" && !strings.Contains(strings.ToLower(learningSearchText(indexEntry)), query) {
 			continue
 		}
-		cards = append(cards, learningSummaryCard(indexEntry, entry, item.sourceLayer, normalizedCommand, contextMatch, crossCommand, len(request.context) > 0))
+		card := learningSummaryCard(indexEntry, entry, item.sourceLayer, normalizedCommand, contextMatch, crossCommand, len(request.context) > 0)
+		applicability := service.catalogLearningApplicability(item, entry, request.context, policy)
+		card["applicability"] = compactLearningApplicability(applicability)
+		card["show_argv"] = append([]any{"specify-runtime", "learning", "show", "--ref", indexEntry["recurrence_key"]}, append(learningContextArgv(request.context), "--format", "json")...)
+		cards = append(cards, card)
 	}
 	sortLearningCards(cards)
 	total := len(cards)
@@ -491,7 +508,7 @@ func (service learningService) list(request learningListRequest) (map[string]any
 	return sanitizeLearningProjection(payload), nil
 }
 
-func (service learningService) show(ref string) (map[string]any, error) {
+func (service learningService) show(ref string, contexts ...map[string][]string) (map[string]any, error) {
 	requested := strings.TrimSpace(ref)
 	if requested == "" {
 		return nil, fmt.Errorf("learning ref is required")
@@ -501,6 +518,10 @@ func (service learningService) show(ref string) (map[string]any, error) {
 		return nil, err
 	}
 	policy, policyWarnings, _ := service.loadLearningPolicy(false)
+	context := map[string][]string{}
+	if len(contexts) > 0 {
+		context = sanitizeLearningContextsWithPolicy(contexts[0], policy)
+	}
 	requestedSafe := sanitizeLearningRecurrenceKeyWithPolicy(requested, policy).text
 	catalog, warnings, err := service.catalogWithPolicy(policy)
 	if err != nil {
@@ -547,6 +568,13 @@ func (service learningService) show(ref string) (map[string]any, error) {
 			}
 		} else if facets := mapStringAny(indexEntry["facets"]); len(facets) > 0 {
 			applicability["facets"] = facets
+		}
+		proof := service.catalogLearningApplicability(item, entry, context, policy)
+		for key, value := range proof {
+			applicability[key] = value
+		}
+		if binding := firstNonNilLearningEntry(entry, indexEntry)["applicability_binding"]; binding != nil {
+			applicability["binding"] = binding
 		}
 		status := "indexed"
 		summary := stringFromAny(indexEntry["problem"])
@@ -614,6 +642,9 @@ func (service learningService) capture(request learningCaptureRequest) (map[stri
 		return nil, err
 	}
 	return service.withLock(func(service learningService, paths learningPaths) (map[string]any, error) {
+		if err := service.bindLearningApplicability(entry, service.applicability, policy); err != nil {
+			return nil, err
+		}
 		decision := stringFromAny(entry["assessment_decision"])
 		if decision == "ignore" {
 			if err := service.recordLearningAssessment(paths, entry, false, false); err != nil {
@@ -701,6 +732,15 @@ func (service learningService) captureAuto(commandName, featureDir, workspace, s
 	if err != nil {
 		return nil, err
 	}
+	if service.applicability.provided() {
+		bindingEntry := map[string]any{}
+		if err := service.bindLearningApplicability(bindingEntry, service.applicability, policy); err != nil {
+			return nil, err
+		}
+		binding := mapStringAny(bindingEntry["applicability_binding"])
+		sum := sha256.Sum256([]byte(fingerprint + "\n" + stringFromAny(binding["digest"])))
+		fingerprint = hex.EncodeToString(sum[:])
+	}
 	buildAssessedEntries := func() ([]map[string]any, error) {
 		existingOccurrences, countErr := service.existingLearningOccurrenceCounts(policy)
 		if countErr != nil {
@@ -717,6 +757,9 @@ func (service learningService) captureAuto(commandName, featureDir, workspace, s
 			}, policy)
 			if buildErr != nil {
 				return nil, buildErr
+			}
+			if bindErr := service.bindLearningApplicability(entry, service.applicability, policy); bindErr != nil {
+				return nil, bindErr
 			}
 			key := stringFromAny(entry["recurrence_key"])
 			if existingOccurrences[key] > 0 {
@@ -966,9 +1009,10 @@ func (service learningService) storeLearningEntry(paths learningPaths, entry map
 }
 
 type learningCatalogItem struct {
-	indexEntry  map[string]any
-	entry       map[string]any
-	sourceLayer string
+	indexEntry      map[string]any
+	entry           map[string]any
+	sourceLayer     string
+	bindingConflict bool
 }
 
 func (service learningService) catalog() ([]learningCatalogItem, []string, error) {
@@ -989,7 +1033,10 @@ func (service learningService) catalogWithPolicy(policy learningPolicy) ([]learn
 	}{{"candidate", paths.candidates}, {"confirmed-learning", paths.confirmedLearnings}, {"project-rule", paths.projectRules}} {
 		for _, entry := range readLearningEntriesIfPresent(source.path) {
 			entry = applyLearningAssessment(sanitizeLearningEntryWithPolicy(entry, policy), "")
-			sourceByKey[stringFromAny(entry["recurrence_key"])] = learningCatalogItem{entry: entry, sourceLayer: source.layer}
+			key := stringFromAny(entry["recurrence_key"])
+			previous := sourceByKey[key]
+			conflict := previous.bindingConflict || (previous.entry != nil && !learningApplicabilityProjectionMatches(previous.entry, entry))
+			sourceByKey[key] = learningCatalogItem{entry: entry, sourceLayer: source.layer, bindingConflict: conflict}
 		}
 	}
 	indexEntries, warnings := readLearningIndexEntriesWithDiagnostics(paths.learningIndex)
@@ -1129,6 +1176,7 @@ func mergeLearningEntry(existing, incoming map[string]any, status string) map[st
 		merged[key] = stringsToAny(uniqueSortedTrimmed(append(anyStringSlice(existing[key]), anyStringSlice(incoming[key])...)))
 	}
 	merged["facets"] = facetsToAny(mergeLearningFacets(anyFacets(existing["facets"]), anyFacets(incoming["facets"])))
+	mergeLearningApplicability(existing, incoming, merged)
 	sensitivity, labels := mergeLearningContentSafety(existing, incoming, merged)
 	merged["sensitivity"] = sensitivity
 	merged["redaction_labels"] = stringsToAny(labels)
@@ -1209,6 +1257,13 @@ func upsertLearningIndexEntry(entries []map[string]any, entry map[string]any) ([
 		merged["learning_value_reason_codes"] = stringsToAny(canonicalLearningReasonCodes(append(anyStringSlice(existing["learning_value_reason_codes"]), anyStringSlice(entry["learning_value_reason_codes"])...)))
 		merged["signal_strength"] = strongestLearningSignal(stringFromAny(existing["signal_strength"]), stringFromAny(entry["signal_strength"]))
 		merged["facets"] = facetsToAny(mergeLearningFacets(anyFacets(existing["facets"]), anyFacets(entry["facets"])))
+		for _, field := range []string{"applicability_binding", "applicability_history"} {
+			if value, exists := entry[field]; exists {
+				merged[field] = value
+			} else {
+				delete(merged, field)
+			}
+		}
 		sensitivity, labels := mergeLearningContentSafety(existing, entry, merged)
 		merged["sensitivity"] = sensitivity
 		merged["redaction_labels"] = stringsToAny(labels)
@@ -1229,6 +1284,7 @@ func indexEntryFromLearning(entry map[string]any) map[string]any {
 		"signal_strength": entry["signal_strength"], "facets": entry["facets"], "sensitivity": entry["sensitivity"], "redaction_labels": entry["redaction_labels"],
 		"learning_value_tier": entry["learning_value_tier"], "learning_value_reason_codes": entry["learning_value_reason_codes"],
 		"sensitivity_risk_tier": entry["sensitivity_risk_tier"], "assessment_decision": entry["assessment_decision"], "assessment_reason": entry["assessment_reason"],
+		"applicability_binding": entry["applicability_binding"], "applicability_history": entry["applicability_history"],
 	}
 }
 
@@ -1881,7 +1937,13 @@ func parseLearningContexts(values []string) map[string][]string {
 		seen[token] = true
 		facets[facet] = append(facets[facet], value)
 	}
-	return normalizeLearningFacets(facets)
+	context := map[string][]string{}
+	for _, key := range learningContextKeys {
+		if values := uniqueSortedTrimmed(facets[key]); len(values) > 0 {
+			context[key] = values
+		}
+	}
+	return context
 }
 
 func learningContextArgv(context map[string][]string) []any {
@@ -1890,7 +1952,7 @@ func learningContextArgv(context map[string][]string) []any {
 	for raw, facet := range learningContextKeyMap {
 		argumentKey[facet] = raw
 	}
-	for _, facet := range learningFacetKeys {
+	for _, facet := range learningContextKeys {
 		for _, value := range context[facet] {
 			args = append(args, "--context", argumentKey[facet]+"="+value)
 		}

@@ -33,19 +33,20 @@ var mutationCognitionFeatureStages = map[string]string{
 }
 
 type mutationCognitionReceipt struct {
-	Version      int                 `json:"version"`
-	Workflow     string              `json:"workflow"`
-	Scope        string              `json:"scope,omitempty"` // feature rel, quick workspace, or project
-	ResultState  string              `json:"result_state"`
-	Reason       string              `json:"reason,omitempty"`
-	Evidence     []string            `json:"evidence,omitempty"`
-	ChangedPaths []string            `json:"changed_paths,omitempty"`
-	IntentID     string              `json:"intent_id,omitempty"`
-	IntentRef    string              `json:"intent_ref,omitempty"`
-	IntentDigest string              `json:"intent_digest,omitempty"`
-	UpdateID     string              `json:"update_id,omitempty"`
-	RecordedAt   string              `json:"recorded_at"`
-	DoBinding    *DoCognitionBinding `json:"do_binding,omitempty"`
+	Version       int                 `json:"version"`
+	Workflow      string              `json:"workflow"`
+	Scope         string              `json:"scope,omitempty"` // feature rel, quick workspace, or project
+	ResultState   string              `json:"result_state"`
+	Reason        string              `json:"reason,omitempty"`
+	Evidence      []string            `json:"evidence,omitempty"`
+	ChangedPaths  []string            `json:"changed_paths,omitempty"`
+	IntentID      string              `json:"intent_id,omitempty"`
+	IntentRef     string              `json:"intent_ref,omitempty"`
+	IntentDigest  string              `json:"intent_digest,omitempty"`
+	UpdateID      string              `json:"update_id,omitempty"`
+	RecordedAt    string              `json:"recorded_at"`
+	DoBinding     *DoCognitionBinding `json:"do_binding,omitempty"`
+	StrongBinding *closeoutBinding    `json:"strong_binding,omitempty"`
 }
 
 func normalizeMutationCognitionState(raw string) string {
@@ -127,7 +128,40 @@ func recordMutationCognitionReceipt(scopeDir, workflow, scopeLabel, resultState,
 }
 
 func recordMutationCognitionReceiptWithPaths(scopeDir, workflow, scopeLabel, resultState, reason, updateID string, evidence []string, changedPaths []string) (map[string]any, error) {
-	return recordMutationCognitionReceiptBound(scopeDir, workflow, scopeLabel, resultState, reason, updateID, evidence, changedPaths, "", "", "")
+	canonical, err := normalizeMutationWorkflowID(workflow)
+	if err != nil {
+		return nil, err
+	}
+	paths, err := rt.ResolvePaths(scopeDir)
+	if err != nil {
+		return nil, err
+	}
+	// Keep Do's operation lock before cognition's update lock. Bound apply
+	// already holds both and bypasses this standalone compatibility wrapper.
+	if canonical == "sp-do" {
+		id, err := doCognitionScope(paths.Root, scopeLabel)
+		if err != nil {
+			return nil, err
+		}
+		release, err := doSessionLock(paths.Root, id)
+		if err != nil {
+			return nil, err
+		}
+		defer release()
+	}
+	release, err := rt.AcquireUpdateLock(paths)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	intent, err := pendingMutationCloseoutIntent(scopeDir, canonical)
+	if err != nil {
+		return nil, fmt.Errorf("standalone cognition receipt cannot establish absence of a durable intent: %w; %s", err, mutationCognitionRecoveryText(scopeDir, canonical, changedPaths))
+	}
+	if intent != nil {
+		return nil, fmt.Errorf("standalone cognition receipt cannot replace durable intent %s; %s", intent.ID, mutationCognitionRecoveryText(scopeDir, canonical, changedPaths))
+	}
+	return recordMutationCognitionReceiptBound(scopeDir, canonical, scopeLabel, resultState, reason, updateID, evidence, changedPaths, "", "", "")
 }
 
 func recordMutationCognitionReceiptBound(scopeDir, workflow, scopeLabel, resultState, reason, updateID string, evidence []string, changedPaths []string, intentID string, intentRef string, intentDigest string, doBindings ...*DoCognitionBinding) (map[string]any, error) {
@@ -159,6 +193,17 @@ func recordMutationCognitionReceiptBound(scopeDir, workflow, scopeLabel, resultS
 	if err := doPrepareCognitionReceipt(scopeDir, &receipt, doBindings); err != nil {
 		return nil, err
 	}
+	if intentID != "" {
+		paths, err := rt.ResolvePaths(scopeDir)
+		if err != nil {
+			return nil, err
+		}
+		intent, err := loadCloseoutIntent(paths, intentID)
+		if err != nil {
+			return nil, err
+		}
+		receipt.StrongBinding = intent.StrongBinding
+	}
 	path, err := writeMutationCognitionReceipt(scopeDir, receipt)
 	if err != nil {
 		return nil, err
@@ -177,6 +222,7 @@ func recordMutationCognitionReceiptBound(scopeDir, workflow, scopeLabel, resultS
 		"update_id":     receipt.UpdateID,
 		"recorded_at":   receipt.RecordedAt,
 		"allowed_close": mutationCognitionReceiptAllowedClose(scopeDir, &receipt),
+		"strong_proof":  receipt.StrongBinding != nil || receipt.Workflow == "sp-do" && receipt.DoBinding != nil,
 		"policy":        "Every source-changing mutation workflow must refresh project cognition so a greenfield project continuously gains path_index, routes, and claims. Prefer result_state=ready after update+validate-build+complete-refresh; use mark-dirty/no_op only with an explicit reason.",
 	}
 	if allowed, reason := mutationCognitionReceiptGateReason(scopeDir, &receipt); !allowed && reason != "" {
@@ -231,6 +277,57 @@ func mutationCognitionReceiptGateReason(scopeDir string, receipt *mutationCognit
 	state := normalizeMutationCognitionState(receipt.ResultState)
 	if !mutationCognitionAllowedStates[state] {
 		return false, "non_terminal_result_state"
+	}
+	bound, err := matchingMutationCloseoutIntent(scopeDir, receipt)
+	if err != nil {
+		return false, "closeout_intent_integrity_requires_inspect"
+	}
+	// A valid bound intent exempts only its own atomic receipt publication.
+	// It must not hide another same-scope intent persisted after that receipt.
+	intent, committed, err := pendingIntentForCommittedMutationReceipt(scopeDir, receipt)
+	if !committed && err == nil {
+		if bound {
+			intent, err = pendingMutationCloseoutIntent(scopeDir, receipt.Workflow, receipt.IntentID)
+		} else {
+			intent, err = pendingMutationCloseoutIntent(scopeDir, receipt.Workflow)
+		}
+	}
+	if err != nil {
+		return false, "closeout_intent_integrity_requires_inspect"
+	}
+	if intent != nil {
+		return false, "pending_closeout_intent_requires_replay"
+	}
+	return mutationCognitionReceiptResultGateReason(scopeDir, receipt)
+}
+
+// Validate the recorded update result independently of whether other intents
+// still own this scope. Locked replay uses this proof to publish and prune one
+// completed intent without claiming that the entire scope may close.
+func mutationCognitionReceiptResultGateReason(scopeDir string, receipt *mutationCognitionReceipt) (bool, string) {
+	if receipt == nil {
+		return false, "missing_receipt"
+	}
+	state := normalizeMutationCognitionState(receipt.ResultState)
+	if !mutationCognitionAllowedStates[state] {
+		return false, "non_terminal_result_state"
+	}
+	if receipt.StrongBinding != nil {
+		paths, err := rt.ResolvePaths(scopeDir)
+		if err != nil {
+			return false, "strong_binding_root_unavailable"
+		}
+		physicalScope, err := filepath.Rel(paths.Root, scopeDir)
+		if err != nil || filepath.ToSlash(physicalScope) != receipt.Scope {
+			return false, "strong_binding_copied_to_wrong_scope"
+		}
+		if _, err := requireStrongCloseoutBinding(paths.Root, receipt.Workflow, receipt.Scope, receipt.StrongBinding.ID, receipt.StrongBinding.WorkID); err != nil {
+			return false, "strong_binding_stale: " + err.Error()
+		}
+		stored, err := loadCloseoutBinding(paths.Root, receipt.StrongBinding.ID)
+		if err != nil || stored.Digest != receipt.StrongBinding.Digest {
+			return false, "strong_binding_receipt_version_changed"
+		}
 	}
 	switch state {
 	case "ready", "no_op":
@@ -324,19 +421,33 @@ func requireMutationCognitionReceipt(scopeDir, expectedWorkflow string) error {
 			if err == nil && got != "" && got != want {
 				// implement-teams records as sp-implement; accept family match.
 				if !(want == "sp-implement" && got == "sp-implement") {
-					return fmt.Errorf("project cognition mutation receipt workflow is %q, expected %q; re-record with cognition mutation-receipt --workflow %s", got, want, want)
+					return fmt.Errorf("project cognition mutation receipt workflow is %q, expected %q; %s", got, want, mutationCognitionRecoveryText(scopeDir, want, nil))
 				}
 			}
+		}
+		receipt, err := loadMutationCognitionReceipt(scopeDir)
+		if err != nil {
+			return err
+		}
+		if receipt != nil && receipt.Workflow == "sp-do" && receipt.DoBinding == nil {
+			return fmt.Errorf("missing pre-update Do source binding; resume the exact native Do cognition closeout owner")
+		}
+		needsStrong := receipt != nil && (receipt.Workflow == "sp-implement" || receipt.Workflow == "sp-quick" || receipt.Workflow == "sp-fast" || receipt.Workflow == "sp-debug" || receipt.Workflow == "sp-review" || receipt.Workflow == "sp-e2e" || receipt.Workflow == "sp-do")
+		if receipt == nil || needsStrong && receipt.StrongBinding == nil && !(receipt.Workflow == "sp-do" && receipt.DoBinding != nil) {
+			return fmt.Errorf("legacy cognition receipt is audit input and lacks cognition.closeout.binding.v1; begin before fresh verification, seal and apply the exact current binding")
+		}
+		if receipt.StrongBinding != nil && receipt.StrongBinding.ItemID != "" && (receipt.Workflow == "sp-implement" || receipt.Workflow == "sp-quick" || receipt.Workflow == "sp-review" || receipt.Workflow == "sp-e2e") {
+			return fmt.Errorf("terminal scope requires the joined native Work owner, not one item's binding")
 		}
 		return nil
 	}
 	status := fmt.Sprint(gate["status"])
-	next := fmt.Sprintf("specify-runtime cognition mutation-receipt --workflow %s --scope-dir %q --result-state ready|no_op|mark-dirty|partial --reason <text> --format json", firstNonEmpty(expectedWorkflow, "sp-implement"), scopeDir)
+	next := mutationCognitionRecoveryText(scopeDir, firstNonEmpty(expectedWorkflow, "sp-implement"), nil)
 	if status == "missing" {
-		return fmt.Errorf("project cognition mutation closeout receipt is missing; after source changes run closeout-plan → update → validate-build/complete-refresh (or mark-dirty), then %s so the project map keeps improving", next)
+		return fmt.Errorf("project cognition mutation closeout receipt is missing; %s; standalone mark-dirty fallback is allowed only when no trustworthy intent can be formed", next)
 	}
 	if status == "invalid" {
-		return fmt.Errorf("project cognition mutation closeout receipt is invalid (%v); re-run %s", gate["error"], next)
+		return fmt.Errorf("project cognition mutation closeout receipt is invalid (%v); %s", gate["error"], next)
 	}
 	if reason := strings.TrimSpace(fmt.Sprint(gate["blocked_reason"])); reason != "" {
 		return fmt.Errorf("project cognition mutation closeout result_state=%q is not closeable: %s; re-run %s after repairing the closeout", gate["result_state"], reason, next)

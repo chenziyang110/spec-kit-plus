@@ -29,6 +29,7 @@ const (
 	BaselineKindBrownfieldFull             = "brownfield_full"
 	BaselineKindGreenfieldEmpty            = "greenfield_empty"
 	GreenfieldBaselineHasProjectCodeReason = "greenfield_baseline_has_project_code"
+	IncompatibleStoreRecovery              = "inspect with specify-runtime cognition archive-incompatible-store --inspect --format json, review the returned digest-bound archive_argv, then run sp-map-scan followed by sp-map-build; do not directly remove or modify the store"
 )
 
 var ErrUnsupportedLegacy = errors.New("unsupported legacy project cognition runtime")
@@ -89,6 +90,7 @@ type ErrorPayload struct {
 	RecommendedNextAction string   `json:"recommended_next_action"`
 	Errors                []string `json:"errors"`
 	StatusPath            string   `json:"status_path,omitempty"`
+	NextArgv              []string `json:"next_argv,omitempty"`
 }
 
 func DefaultStatus(paths Paths) Status {
@@ -183,9 +185,10 @@ func UnsupportedLegacyPayload(paths Paths) ErrorPayload {
 		Status:                "blocked",
 		Readiness:             UnsupportedReadiness,
 		ErrorCode:             ErrLegacyCode,
-		RecommendedNextAction: "run_map_scan_build",
-		Errors:                []string{"existing .specify/project-cognition state is not a compatible specify-runtime cognition store; remove or archive it and run sp-map-scan followed by sp-map-build"},
+		RecommendedNextAction: "inspect_incompatible_store",
+		Errors:                []string{"existing .specify/project-cognition state is not a compatible specify-runtime cognition store; " + IncompatibleStoreRecovery},
 		StatusPath:            slash(paths.StatusPath),
+		NextArgv:              []string{"specify-runtime", "cognition", "archive-incompatible-store", "--inspect", "--format", "json"},
 	}
 }
 

@@ -102,11 +102,12 @@ Confirm scan/rebuild need with
 10. Run `{{specify-subcmd:specify-runtime cognition validate-scan --format json}}` and
    repair every blocking coverage/evidence gap.
 
-If no capable worker is available or a prepared packet cannot be dispatched
-safely, preserve the prepared queue and persist `subagent_blocked` in the
-canonical workbench state and gap/coverage surfaces with packet, blocked scope,
-owner, and `recovery_condition`. Keep the workbench resumable and stop with that
-recovery action. Do not replace the missing worker with leader bulk reads or
+If a prepared packet cannot be dispatched safely, preserve the queue, repair
+the packet or invocation, join capacity-limited work, and resume or redispatch a
+safe serial worker in this invocation. Only if no safe authorized recovery
+remains, persist `subagent_blocked` through the runtime in the canonical workbench
+state and gap/coverage surfaces with packet, blocked scope, owner,
+`recovery_condition`, and exact resume action. Do not replace the missing worker with leader bulk reads or
 discard accepted/pending packet state. The leader and workers must not hand-edit
 global queue, handoff, coverage, evidence, provisional, status, or SQLite
 surfaces; only runtime commands may mutate them.

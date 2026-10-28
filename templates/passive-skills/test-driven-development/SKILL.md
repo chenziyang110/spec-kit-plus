@@ -25,7 +25,7 @@ or bypass the owning workflow's maximum.
   Author/select mapped tests before production edits and let the Leader execute
   one combined RED/baseline gate attempt. Do not require every worker to rerun RED and
   GREEN per task.
-- **`sp-debug`**: When diagnosing or fixing a bug, your FIRST step must be to write a failing test that explicitly reproduces the bug. Do not change production code until you have empirically confirmed the failure state.
+- **`sp-debug`**: Follow Debug's existing intake and safely investigate the report using existing evidence first. Present the discovered defect and concrete repair for user confirmation before authoring tests, harnesses, persistent instrumentation, or production changes. After approval, write or select a failing test that reproduces the bug and prove RED before changing production code. Bounded diagnostic-enablement approval permits only its named diagnostic changes; return to investigation and obtain evidence-backed repair approval before repairing production behavior.
 - **`sp-fast` / `sp-quick`**: For direct-delivery behavior changes at any supported size, write a test first to verify the change and prevent regressions.
 
 ## The Iron Law

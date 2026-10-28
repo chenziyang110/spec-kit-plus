@@ -108,7 +108,7 @@ Both profiles begin with a bounded capability negotiation through the installed
 project launcher. The executable name below denotes that resolved launcher:
 
 ```sh
-specify-runtime api ensure --capabilities e2e.init,e2e.status,e2e.scope-add,e2e.task-start,e2e.task-submit,e2e.review-start,e2e.review-submit,e2e.task-accept,e2e.reopen,e2e.close --format json
+specify-runtime api ensure --capabilities e2e.init,e2e.status,e2e.compact,e2e.task-show,e2e.scope-add,e2e.task-start,e2e.task-submit,e2e.review-start,e2e.review-submit,e2e.task-accept,e2e.reopen,e2e.close --format json
 specify-runtime api pack --capabilities e2e.init,e2e.scope-add,e2e.task-submit,e2e.review-submit --include-schema --format json
 ```
 
@@ -121,6 +121,7 @@ binary or old markdown DONE mark cannot grant E2E acceptance.
 | --- | --- |
 | `e2e init` | Freeze `e2e-plan-input`, leader identity, execution/planning mode, requested scope, seven-stage task placeholders, acceptance criteria, input/output paths, dependencies and exclusive resources. Future output files need not exist. |
 | `e2e status` | Re-read the full denominator, current revision, unresolved work, snapshot and byte freshness, and exact continuation. This query does not rewrite state. |
+| `e2e task-show` | Read one task's complete current contract, exact packet/review bindings and applicable recovery templates without taking a write lock or changing its attempt. Stale/corrupt bindings never yield a usable template. |
 | `e2e scope-add` | Add discovered scope/tasks with a reason and evidence. Retain old requirements and reopen affected work; never delete a platform to turn the result green. |
 | `e2e task-start` | Check exact accepted prerequisites and required successful outcomes, freeze current inputs, refuse conflicting active outputs/resources, and return a WorkerTaskPacket, attempt and submission template. Native agent tools dispatch the worker. |
 | `e2e task-submit` | Bind the worker to its packet; require every scope/acceptance pair, actual/expected result, preconditions, reproduction and raw evidence; retain an immutable submission containing the normalized WorkerTaskResult. |
@@ -129,6 +130,51 @@ binary or old markdown DONE mark cannot grant E2E acceptance.
 | `e2e task-accept` | Let the fixed leader accept only the current completely verified revision. Complete failed-run reports remain failed observations. |
 | `e2e reopen` | Record drift or counterevidence, retain old attempts/reviews, and invalidate the affected producer and all descendants. |
 | `e2e close` | Recheck all required scopes/stages and the entire evidence chain before a scoped result. Planning completion, a complete failure report and product execution success are distinct. |
+
+Negotiate `e2e.compact` before using `--view compact` on state responses. This
+feature is not an executable `e2e compact` operation. Full views remain the
+compatibility default; `--view full` explicitly selects them. Compact views keep
+global scope/task/acceptance-row counts and unresolved totals while paging tasks
+with `--offset` and `--limit` (25 by default, at most 200). Follow returned
+`next_page_argv` and `full_show_argv`; require one revision across pages and
+refresh after a change. A page cannot redefine the full denominator. Use its
+shared `task_show_argv`, replacing only `<task-id>` with the selected row ID,
+to obtain complete detail. Recover an interrupted running/reviewing attempt
+from that exact read-only result rather than starting another attempt or
+reconstructing digest fields from chat memory.
+
+State responses also expose `readiness_counts` and `fresh_revision`. Full view
+lists every `ready_actions` entry and `waiting` reason; compact view lists the
+current task page's entries with global totals. A running worker does not hide
+independent work. Individually ready candidates may still conflict with each
+other: inspect `candidate_conflict_pair_count`, then the selected task's paged
+`conflicts` and `next_conflict_page_argv` before parallel assignment. Resource,
+write/write and write/read aliases remain exclusions. Each start independently
+rechecks the latest readiness and revision; one CAS cannot batch several starts.
+
+Drift diagnostics retain the root task, changed path, expected/observed digest,
+kind/reason, exact affected descendants and resume location. Paging keeps their
+full counts. Current mutable source, output or evidence drift requires fresh
+affected work. Corrupt immutable snapshots/history remain blocked, without an
+ordinary retry or reset that discards failed evidence.
+
+### Source-backed risk interactions
+
+Stage 2 includes a semantic review of discovered compound risks. Bind input
+repertoire × boundary/state/timing to requirements, a concrete risk cause,
+condition variants or event/checkpoint, ordered steps and independent effect
+oracles. ASCII inputs cannot distinguish byte, UTF-16 and code-point limits;
+visible success cannot establish a correct durable side effect.
+
+`e2e_assets.py schema strength` describes the ordinary risk intent and frozen
+asset. `strength-prepare <intent> --book <v2-book> --root .` prints the asset;
+save it only to a declared Stage 2 output. `strength-audit <asset> --root .`
+rechecks its original intent/book/source bindings, and `--trace <trace>` invokes
+the existing scenario auditor. The helper writes no files or workflow state,
+executes no tests and cannot authenticate approval or adequate risk discovery.
+Require independent semantic acceptance and exact downstream input bindings.
+When feasible, use disposable known-wrong controls to establish oracle strength;
+retain failures and the full unexecuted scope instead of weakening assertions.
 
 A terminal closeout (`blocked`, `reported`, `complete` or `planning-complete`)
 closes ordinary task/review/accept transitions. Read current `e2e status` and have
@@ -214,6 +260,83 @@ obtain fresh evidence for that book, retaining old runs as history. Do not
 transplant old passing observations into the new trace. Independently scoped
 books prepared before execution may retain their own unchanged evidence; this
 is not native shard merging.
+
+Use `python .specify/scripts/shared/e2e_assets.py schema bundle` to inspect the
+complete parent, intent, execution-binding and run-index schemas. Before any
+execution, `bundle-prepare <intent> --parent <parent> --root .` freezes original
+request sources, the complete obligation/dependency/gap/exclusion denominator,
+each independently scoped v2 book, strength assets, fixtures and real target
+bindings. Independently accept this ordinary Stage 2 output; Stage 3/4 consumes
+its exact file digest and selected asset bindings through existing Go packets.
+Actual cross-feature journeys remain separate dependent books. Partitioning
+after failures cannot alter the accepted execution scope.
+
+Each book's ordinary execution-binding JSON names `schema_version: 1`,
+`bundle_file_sha256`, `book_binding_sha256`, `book_id`, `run_id` and `target`.
+Freeze it in the execution handoff and preserve its raw file as the trace's
+unique `bundle-execution-binding` log evidence. A run-index row references that
+same path/digest through `execution_binding`. This binds declarations and
+evidence; it cannot authenticate a process or prove when the declaration was made.
+
+`bundle-impact <bundle> --expected-bundle-sha256 <accepted-file-digest> --root .
+[--runs <index>]` checks reuse against the externally pinned accepted bundle.
+Parent or intent changes require refreezing; changed source, book, strength, fixture or
+target inputs invalidate that book and its actual descendants. Unaffected old
+evidence remains usable only under its unchanged bindings and original auditors.
+Rewriting an index or receipt cannot relabel an old trace into a new bundle.
+Preparation reuse and retained original history never become a new-run pass.
+
+## Scenario/native evidence crosswalk
+
+Hybrid execution can freeze a many-to-many mapping without another workflow
+state owner. `e2e_assets.py schema crosswalk` exposes the intent, ordinary asset,
+native run index and execution receipt. Native lanes declare root, manifest and
+bindings digests, runner, target and book IDs; native sources must already be
+frozen by those books. Each mapping gives rationale, scenario/step/oracle and
+scenario/condition/timing IDs, native case/journey/parameters, and requirement
+links supporting every edge. Missing or duplicate credit remains visible.
+
+Before execution, use `crosswalk-prepare <intent> --bundle <bundle>
+--expected-bundle-sha256 <accepted-bundle-file-digest> --root .`. Independently
+accept this Stage 2 ordinary file and consume its exact raw digest in Stage 3/4
+packets. The original trace contains one `crosswalk-execution-binding` log,
+bound to a receipt with `schema_version`, `crosswalk_file_sha256`, `book_id`,
+`run_id`, `target`, alongside its separate bundle receipt and original native
+report/results/execution evidence. These declarations are consistency bindings,
+not process or timestamp authentication.
+
+After execution, `crosswalk-audit <asset> --expected-crosswalk-sha256
+<accepted-crosswalk-file-digest> --expected-bundle-sha256
+<accepted-bundle-file-digest> --scenario-runs <bundle-runs-index>
+--native-runs <native-runs-index> --root .` delegates to both original auditors
+and native adapter interpretation/freshness checks. Keep raw failures and retry
+attempts. Native failure, skip, flaky retry, empty selection or missing evidence
+cannot be hidden by visual success. `crosswalk_accounting_complete` describes
+accounting, not product success or a new-run pass; all Go acceptance gates stay.
+
+## Reuse preparation and recovery methods
+
+Find matching methods through `playbook find --operation <operation> --target
+<target> --context-json <actual-context-json> --rank relevance`, then expand only
+the pinned revision's `all` and `evidence` sections. Context supports OS,
+architecture, shell and `toolchain.*`; E2E owns explicit build/target/fixture
+bindings. Keep an unchanged pinned definition for repeat preparation. Before
+every execution, `playbook validate --input-json <pinned-definition-json>
+--context-json <actual-context-json>` (or stdin with `--input-json -`) checks the
+exact definition; `--id` reads the latest revision. Check operation/target,
+content digest and historical versus live `source_fingerprint` yourself.
+`applicable=true` does not make those comparisons or prove success. Changed
+inputs require renewed suitability and fresh launch, independent effect readback
+and reset evidence. No nested DoSession is created.
+
+Consume relevant Learning with `learning start -> list -> show`. Current evidence
+may reject old advice without erasing history. After independent acceptance,
+valuable causal failures/repairs use manual `learning capture --command sp-e2e`
+with stable recurrence key, scoped guidance and failed/repair refs and digests;
+E2E currently has no `capture-auto` adapter. Inspect list/show before resuming:
+reuse the same recorded pair without capturing it again and incrementing its
+occurrence count. Distinct actual recurrences can merge. Respect assessment
+defer/ignore and explicit promotion; routine logs do not create project rules.
 
 ## What prevents omissions
 
@@ -347,6 +470,8 @@ binary executed, pixel inspection, UI acceptance or release safety. Preserve
 independent inventory/assertion/evidence review and visible qualifications;
 missing visual comparison remains pending-human-review.
 
-The branch's merge gates and outstanding catalog/installation work are recorded
-in [E2E readiness](../plans/sp-e2e-readiness.md). Until closed, this is a draft
-implementation, not an installed/released workflow guarantee.
+Current source validation and remaining platform/CI boundaries are recorded in
+[E2E readiness](../plans/sp-e2e-readiness.md). Historical installation evidence
+applies only to its recorded source and wheel; new source changes require fresh
+verification. Local maintenance checks do not establish a runtime release or
+downstream consumer acceptance.

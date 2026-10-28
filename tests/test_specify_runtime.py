@@ -212,12 +212,32 @@ def test_runtime_handshake_allows_unrelated_additive_capabilities(monkeypatch: p
 
 
 @pytest.mark.parametrize("missing", [
-    "e2e.init", "e2e.status", "e2e.scope-add", "e2e.task-start",
+    "e2e.init", "e2e.status", "e2e.compact", "e2e.task-show", "e2e.scope-add", "e2e.task-start",
     "e2e.task-submit", "e2e.review-start", "e2e.review-submit",
     "e2e.task-accept", "e2e.reopen", "e2e.close",
 ])
 def test_runtime_handshake_rejects_partial_e2e_owner(monkeypatch: pytest.MonkeyPatch, missing: str) -> None:
     runtime = _load_runtime()
+    monkeypatch.setattr(
+        runtime, "_runtime_handshake",
+        lambda *_a, **_k: {
+            "protocol_version": runtime.EXPECTED_RUNTIME_PROTOCOL,
+            "capability_ids": [cap for cap in runtime.REQUIRED_CAPABILITIES if cap != missing],
+        },
+    )
+    assert not runtime.launcher_supports_required_commands(["specify-runtime"])
+
+
+@pytest.mark.parametrize("missing", [
+    "cognition.expansion.snapshot.v2",
+    "cognition.claim-evidence.page.v1",
+    "cognition.catalog.snapshot.v1",
+])
+def test_runtime_handshake_rejects_partial_cognition_snapshot_contract(
+    monkeypatch: pytest.MonkeyPatch, missing: str,
+) -> None:
+    runtime = _load_runtime()
+    assert missing in runtime.REQUIRED_CAPABILITIES
     monkeypatch.setattr(
         runtime, "_runtime_handshake",
         lambda *_a, **_k: {
@@ -411,6 +431,8 @@ def test_runtime_resolver_falls_back_only_to_specify_runtime_on_path(
     tmp_path: Path,
 ) -> None:
     runtime = _load_runtime()
+    # An explicit unbound project isolates this test from pins in host ancestors.
+    _write_config(tmp_path, {})
     path_binary = _write_executable(tmp_path / "path" / RUNTIME_BINARY_NAME)
     legacy_binary = _write_executable(tmp_path / "legacy" / LEGACY_BINARY_NAME)
     requested: list[str] = []
