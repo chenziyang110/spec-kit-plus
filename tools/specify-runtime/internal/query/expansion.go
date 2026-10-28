@@ -138,7 +138,7 @@ func writeExpansionBundle(paths rt.Paths, bundle ExpansionBundle) (ExpansionRef,
 	if err := checkExpansionPath(paths, bundlePath, true); err != nil {
 		return ExpansionRef{}, err
 	}
-	data, err := json.MarshalIndent(bundle, "", "  ")
+	data, err := json.Marshal(bundle)
 	if err != nil {
 		return ExpansionRef{}, fmt.Errorf("encode expansion bundle: %w", err)
 	}
@@ -209,6 +209,9 @@ func Expand(paths rt.Paths, input ExpandInput) (ExpandPayload, error) {
 	if err != nil {
 		return ExpandPayload{}, fmt.Errorf("read expansion bundle: %w", err)
 	}
+	// Identity validation binds the complete canonical payload, and claim pages
+	// require the snapshot-bound index. Keep number-preserving full decoding;
+	// projecting only the requested section would lose those integrity inputs.
 	var bundle ExpansionBundle
 	if !json.Valid(data) {
 		return invalidExpansionPayload(requestedID), nil

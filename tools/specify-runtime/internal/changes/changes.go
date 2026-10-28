@@ -203,6 +203,7 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		}
 	}
 
+	explicitPaths := make([]string, 0, len(input.ExplicitPaths))
 	for _, path := range input.ExplicitPaths {
 		originalPath := path
 		path, err = normalizeExplicitPath(paths.Root, path)
@@ -215,7 +216,20 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 			payload.Errors = []string{fmt.Sprintf("invalid explicit path %q: expected a concrete repository-relative path", originalPath)}
 			return payload, nil
 		}
-		addMerged(merged, rt.GitStatusEntry{Code: "explicit", Path: path}, "explicit", pathTrackedByGit(paths.Root, path))
+		explicitPaths = append(explicitPaths, path)
+	}
+	trackedPaths, err := trackedPathsWithCommand(explicitPaths, func(args ...string) ([]byte, error) {
+		return rt.CommandOutput(paths.Root, nil, "git", args...)
+	})
+	if err != nil {
+		payload.Status = "blocked"
+		payload.Readiness = rt.BlockedReadiness
+		payload.NextAction = nextBlocked
+		payload.Errors = []string{err.Error()}
+		return payload, nil
+	}
+	for _, path := range explicitPaths {
+		addMerged(merged, rt.GitStatusEntry{Code: "explicit", Path: path}, "explicit", trackedPaths[path])
 	}
 
 	matcher := ignore.Load(paths.Root)
@@ -334,7 +348,7 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 }
 
 func operationFor(status string, tracked bool, known bool) changemodel.Operation {
-	status = strings.TrimSpace(status)
+	status = effectiveChangeStatus(status)
 	switch {
 	case strings.HasPrefix(status, "D"):
 		return changemodel.OperationDelete
@@ -511,6 +525,7 @@ func blockedRuntimeErrors(status rt.Status) []string {
 }
 
 func classify(status string, known bool) string {
+	status = effectiveChangeStatus(status)
 	switch {
 	case strings.HasPrefix(status, "D"):
 		return levelDeletedPath
@@ -608,7 +623,7 @@ func validExplicitPath(path string) bool {
 	if path == ".specify" || strings.HasPrefix(path, ".specify/") {
 		return false
 	}
-	if strings.ContainsAny(path, "*?[]{}") {
+	if strings.ContainsAny(path, "\x00*?[]{}") {
 		return false
 	}
 	parts := strings.Split(path, "/")
@@ -618,11 +633,4 @@ func validExplicitPath(path string) bool {
 		}
 	}
 	return true
-}
-
-func pathTrackedByGit(root string, path string) bool {
-	if path == "" {
-		return false
-	}
-	return rt.CommandRun(root, nil, "git", "ls-files", "--error-unmatch", "--", path) == nil
 }
