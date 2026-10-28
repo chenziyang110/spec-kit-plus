@@ -197,3 +197,22 @@ def test_wheel_includes_every_recovery_policy_owner() -> None:
     assert force_include["templates/advanced-skills"] == "specify_cli/core_pack/advanced-skills"
     for name in ("workflow-blocker-template.md", "workflow-blocker-schema.json"):
         assert force_include[f"templates/{name}"] == f"specify_cli/core_pack/templates/{name}"
+
+
+def test_integration_owned_classic_skills_receive_global_recovery(tmp_path: Path) -> None:
+    integration = get_integration("claude")
+    assert isinstance(integration, SkillsIntegration)
+    rendered = integration._render_skill_content(
+        raw="---\ndescription: Integration-owned workflow\n---\n\nNative body.\n",
+        skill_name="sp-native-workflow",
+        description="Integration-owned workflow",
+        source="integration/native-workflow.md",
+        project_root=tmp_path,
+        script_type="sh",
+        arg_placeholder="$ARGUMENTS",
+    )
+    assert rendered.count("## Autonomous Blocker Recovery") == 1
+    assert rendered.count("## Blocked Exit Contract") == 1
+    assert "All `sp-*` workflows must recover before exiting" in rendered
+    assert "resume the exact interrupted gate in the same invocation" in re.sub(r"\s+", " ", rendered)
+    assert "read-only and stage boundaries" in rendered
