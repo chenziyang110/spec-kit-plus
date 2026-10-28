@@ -63,6 +63,15 @@ present in a test project.
   return, and the exact resume action. Protected CI and pending visual review
   must name their concrete repository/branch/commit/job or real-entrypoint/
   viewport/state/reference targets; “run CI” or “ask a human” is insufficient.
+- Every `sp-*` and `spx-*` invocation owns safe, authorized blocker recovery,
+  not only the four execution-specific recovery lanes. Apply the shared
+  [Autonomous Blocker Recovery](../autonomous-blocker-recovery.md) contract
+  before any blocked exit: diagnose, repair through the canonical owner,
+  reverify, resume the interrupted gate in the same invocation, and continue
+  the original completion criteria plus independent dependency-ready work.
+  Local stop/fail-closed rules stop invalid operations, not safe recovery;
+  read-only, stage, approval, and independent-acceptance boundaries remain.
+  A missing capability or external outage is not automatically a user task.
 - Advanced does **not** install the Classic passive-skill prompt bundle.
   Essential safety and execution gates belong in the owning SPX skill, a
   profile-local Advanced reference, or shared deterministic runtime.
