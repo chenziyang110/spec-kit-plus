@@ -3052,6 +3052,25 @@ class SkillsIntegration(IntegrationBase):
                 )
                 processed_body = f"\n{contract.strip()}\n\n{processed_body.lstrip()}"
 
+        # Native integration-owned Classic commands have the same recovery
+        # obligations as the shared templates/commands catalog.
+        if skill_name.startswith("sp-") and commands_dir is not None:
+            for filename, heading in (
+                ("autonomous-blocker-recovery.md", "## Autonomous Blocker Recovery"),
+                ("blocker-resolution.md", "## Blocked Exit Contract"),
+            ):
+                contract_path = commands_dir.parent / "command-partials/common" / filename
+                if heading not in processed_body and contract_path.is_file():
+                    contract = self.process_template(
+                        contract_path.read_text(encoding="utf-8"),
+                        self.key,
+                        script_type,
+                        arg_placeholder,
+                        template_path=contract_path,
+                        project_root=project_root,
+                    )
+                    processed_body = f"\n{contract.strip()}\n\n{processed_body.lstrip()}"
+
         from specify_cli.agents import CommandRegistrar
 
         if apply_invocation_conventions:

@@ -1,7 +1,13 @@
 # Blocked exit
 
-Read this reference only when the active SPX invocation cannot safely continue
-after permitted self-recovery.
+Every `spx-*` workflow must read and follow
+`references/autonomous-blocker-recovery.md` before deciding that a failure is
+terminal, including intake, prerequisite, tool, artifact, and validation errors.
+Do not wait for the user to request recovery. Preserve the parent workflow,
+resume the exact interrupted gate in the same invocation after repair, and
+continue the original completion criteria. A local stop/halt/fail-closed rule
+stops the invalid operation, not safe diagnosis or authorized recovery; all
+read-only, stage, approval, and independent-validation boundaries remain intact.
 
 Use the installed `.specify/templates/workflow-blocker-schema.json` and compact
 human view in `.specify/templates/workflow-blocker-template.md`. Preserve any
@@ -21,10 +27,14 @@ an external write or approval not authorized, subjective product/visual
 decisions, physical-device action, or an organization-controlled service the
 agent cannot operate.
 
-For every workflow, first follow
-`references/autonomous-blocker-recovery.md`. Project-controlled launchers,
-harnesses, dependencies, tooling, local services, and supporting scope growth
-cannot become terminal only because they were outside the first packet.
+Project-controlled launchers, harnesses, dependencies, tooling, local services,
+and supporting scope growth cannot become terminal only because they were
+outside the first packet. Use this terminal view only after no safe authorized
+recovery or independent work remains. An unavailable capability or external
+outage alone does not imply human action: keep the real owner and
+`human_action_required: false` unless a specific human action is necessary.
+Never weaken acceptance criteria, skip mandatory checks, fabricate evidence,
+or overwrite unrelated user changes to turn a blocker into a passing result.
 
 When human action is truly required, provide a self-contained tutorial:
 
