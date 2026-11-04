@@ -94,6 +94,17 @@ a later invocation before promoting the improvement.
 | Ordinary closeout | `do complete` | Validated execution, exact-template revision/usage and saved knowledge |
 | Explicit closeout | `do finish` pending, scoped Learning if meaningful, `playbook update`, `do finish` saved | Same owners with a lesson, manual publication or an explicit alternative disposition |
 
+Rejected JSON fields in `do prepare`, other Do inputs and Playbook inputs include
+`data.validation_errors`: each entry has an RFC 6901 `instance_path` such as
+`/definition/checks/0/argv`, a `keyword` such as `required`, `type` or
+`additionalProperties`, and a message without submitted values. Prepare input
+failures also return `data.schema_argv`; correct the input and retry preparation.
+An initial validation failure creates no DoSession or Work and is not a session
+resume operation. Process-based checks require `cwd` and `argv` even when they
+only inspect an artifact: use `"cwd":"."` and `"argv":[]` for those checks.
+An `exit_code` check instead requires a nonempty command. `source_writes`
+belongs to a `local_write` step, not to a check.
+
 Go owns generated state, validation, artifact registration and transactions.
 Python owns bootstrap, installation, native integration rendering and
 compatibility. The runtime never launches the build/test command. Observations

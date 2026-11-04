@@ -89,12 +89,12 @@ func runDo(args []string, stdout io.Writer) int {
 		}
 		var input doStartInput
 		if err := doReadInput(parsed.option("--input-json", ""), &input); err != nil {
-			return doError(stdout, err, "")
+			return doError(stdout, err, "", "do-"+command+"-input")
 		}
 		if command == "prepare" {
 			data, err := doPrepare(root, input)
 			if err != nil {
-				return doError(stdout, err, input.SessionID)
+				return doError(stdout, err, "", "do-prepare-input")
 			}
 			env := NewEnvelope("ok", "operation inputs prepared; no session or Work created")
 			env.Data = data
@@ -248,7 +248,7 @@ func doReadInput(raw string, target any) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
-		return fmt.Errorf("invalid do input: %w", err)
+		return fmt.Errorf("invalid do input: %w", playbookDescribeJSONError(data, target, err))
 	}
 	var extra any
 	if err := decoder.Decode(&extra); err != io.EOF {
@@ -257,9 +257,20 @@ func doReadInput(raw string, target any) error {
 	return nil
 }
 
-func doError(stdout io.Writer, err error, id string) int {
+func doError(stdout io.Writer, err error, id string, schemas ...string) int {
 	env := NewEnvelope("blocked", "operation cannot advance")
-	env.Blockers = append(env.Blockers, map[string]any{"code": "do-operation-blocked", "owner": "agent", "cause": err.Error(), "resume_point": "inspect the exact session and preserve prior attempts"})
+	resume := "correct the input and retry the same operation; no session was created"
+	if doIDPattern.MatchString(id) {
+		resume = "inspect the exact session and preserve prior attempts"
+	}
+	env.Blockers = append(env.Blockers, map[string]any{"code": "do-operation-blocked", "owner": "agent", "cause": err.Error(), "resume_point": resume})
+	var inputError *playbookJSONInputError
+	if errors.As(err, &inputError) {
+		env.Data["validation_errors"] = inputError.Issues
+	}
+	if len(schemas) > 0 {
+		env.Data["schema_argv"] = []string{"specify-runtime", "api", "schema", schemas[0], "--format", "json"}
+	}
 	if doIDPattern.MatchString(id) {
 		env.ShowArgv = []string{"specify-runtime", "do", "show", id, "--format", "json"}
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -70,6 +71,10 @@ func runPlaybook(args []string, stdout io.Writer) int {
 		env.Blockers = append(env.Blockers, redactLearningTextWithPolicy(err.Error(), policy).text)
 		env.Data["error_code"] = "playbook-runtime-error"
 		env.Data["claim_ready"] = false
+		var inputError *playbookJSONInputError
+		if errors.As(err, &inputError) {
+			env.Data["validation_errors"] = inputError.Issues
+		}
 		return writeEnvelope(stdout, env)
 	}
 	env := NewEnvelope("ok", "playbook "+args[0]+" completed")

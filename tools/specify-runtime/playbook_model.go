@@ -177,7 +177,7 @@ func decodePlaybookJSON(raw []byte, target any) error {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
-		return fmt.Errorf("playbook_json_schema_invalid")
+		return playbookDescribeJSONError(raw, target, err)
 	}
 	var extra any
 	if err := decoder.Decode(&extra); err != io.EOF {
