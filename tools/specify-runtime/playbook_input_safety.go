@@ -14,6 +14,7 @@ var playbookSecretField = regexp.MustCompile(`(?i)^(token|password|passwd|secret
 var playbookEnvironmentBinding = regexp.MustCompile(`^\$\{[A-Z_][A-Z0-9_]*\}$`)
 var playbookPublicPathToken = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
 var playbookPowerShellPreference = regexp.MustCompile(`(?i)^\$(?:ErrorAction|Progress|Warning|Information|Verbose|Debug|Confirm|WhatIf)Preference=?$`)
+var playbookPublicArtifactPath = regexp.MustCompile(`(?i)^(?:[a-z]:)?(?:[\\/]{1,2})?(?:[a-z0-9._-]+[\\/])*([a-z][a-z0-9._-]*[._-][0-9]+(?:[._-][a-z0-9]+)*\.(?:exe|dll|msi|msix|msixbundle|zip|7z|cab|iso|wim|esd|tar|gz|bz2|xz))$`)
 
 // Inspect field values rather than JSON punctuation. Only the entropy fallback
 // gets syntax-aware exceptions; credentials and project policy always run first.
@@ -91,6 +92,15 @@ func validatePlaybookSensitiveContent(root string, definition PlaybookDefinition
 			for token := range argvPublicTokens[path.Dir(pointer)] {
 				publicTokens[token] = true
 			}
+			// Versioned package filenames are public command data, even before
+			// the output exists. Only their basename bypasses the entropy
+			// fallback; directories, shell text and deterministic secret/policy
+			// detectors retain their existing checks.
+			if key == "argv" {
+				if basename := playbookPublicArtifactBasename(item); basename != "" {
+					publicTokens[basename] = true
+				}
+			}
 			if key == "source_files" || key == "script_ref" || key == "cwd" || (key == "argv" && playbookScriptPath(item)) {
 				candidate := strings.TrimPrefix(strings.ReplaceAll(item, "\\", "/"), "./")
 				if playbookPublicPathToken.MatchString(candidate) {
@@ -111,6 +121,25 @@ func validatePlaybookSensitiveContent(root string, definition PlaybookDefinition
 		return nil
 	}
 	return inspect(decoded, "", "")
+}
+
+func playbookPublicArtifactBasename(value string) string {
+	normalized := strings.ReplaceAll(value, "\\", "/")
+	if !strings.Contains(normalized, "/") {
+		return ""
+	}
+	if len(normalized) >= 2 && normalized[1] == ':' && (len(normalized) < 3 || normalized[2] != '/') {
+		return "" // Windows drive-relative paths are not explicit local paths.
+	}
+	for _, part := range strings.Split(normalized, "/") {
+		if part == "." || part == ".." {
+			return ""
+		}
+	}
+	if match := playbookPublicArtifactPath.FindStringSubmatch(value); match != nil {
+		return match[1]
+	}
+	return ""
 }
 
 func playbookScriptPath(value string) bool {

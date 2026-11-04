@@ -105,6 +105,15 @@ only inspect an artifact: use `"cwd":"."` and `"argv":[]` for those checks.
 An `exit_code` check instead requires a nonempty command. `source_writes`
 belongs to a `local_write` step, not to a check.
 
+Standalone package paths with conventional versioned artifact names (for
+example `output/r370/JZWinPassClearIns_001_200.exe`) do not count as credentials
+solely because their filename mixes uppercase, lowercase and digits. This
+exception applies only to that filename's generic entropy check; credential
+flags, known secret formats, sensitive directory names and project detector
+policies still apply. It does not exempt shell snippets or unversioned opaque
+values renamed as files. Actual secrets must use `${ENVIRONMENT_VARIABLE}`
+bindings; there is no general credential-detection bypass.
+
 Go owns generated state, validation, artifact registration and transactions.
 Python owns bootstrap, installation, native integration rendering and
 compatibility. The runtime never launches the build/test command. Observations
