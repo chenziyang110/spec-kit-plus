@@ -94,6 +94,17 @@ func runDo(args []string, stdout io.Writer) int {
 		if command == "prepare" {
 			data, err := doPrepare(root, input)
 			if err != nil {
+				var external *doExternalInputError
+				if errors.As(err, &external) && input.Command != nil {
+					copy := *external
+					if strings.HasPrefix(copy.Pointer, "/external_inputs") {
+						copy.Pointer = "/command" + copy.Pointer
+					}
+					if strings.HasPrefix(copy.Pointer, "/steps/0/argv") {
+						copy.Pointer = strings.Replace(copy.Pointer, "/steps/0/argv", "/command/argv", 1)
+					}
+					err = &copy
+				}
 				return doError(stdout, err, "", "do-prepare-input")
 			}
 			env := NewEnvelope("ok", "operation inputs prepared; no session or Work created")
@@ -268,9 +279,22 @@ func doError(stdout io.Writer, err error, id string, schemas ...string) int {
 	if errors.As(err, &inputError) {
 		env.Data["validation_errors"] = inputError.Issues
 	}
+	var external *doExternalInputError
+	if errors.As(err, &external) {
+		pointer := external.Pointer
+		if strings.HasPrefix(pointer, "/external_inputs") || strings.HasPrefix(pointer, "/steps/") || strings.HasPrefix(pointer, "/checks/") {
+			pointer = "/definition" + pointer
+		}
+		message := "Use a declared whole {{external:name}} data argument after a fixed project script; keep paths and contents out of input and logs."
+		if external.Environment != "" {
+			message = "Set local environment variable " + external.Environment + " to an absolute readable regular file outside the project before retrying; inherit it without including its value in tool arguments. No path or content is saved."
+		}
+		env.Data["validation_errors"] = []playbookJSONIssue{{InstancePath: pointer, Keyword: "protected_binding", Message: message}}
+		env.Data["protected_input"] = map[string]any{"binding": external.Name, "environment": external.Environment, "cause_code": external.Code, "persistence": "binding/environment names and digests only; paths and contents are not saved"}
+	}
 	if len(schemas) > 0 {
 		env.Data["schema_argv"] = []string{"specify-runtime", "api", "schema", schemas[0], "--format", "json"}
-		if inputError == nil {
+		if inputError == nil && external == nil {
 			if match := regexp.MustCompile(`pointer=([^\s]+)`).FindStringSubmatch(err.Error()); match != nil {
 				pointer := match[1]
 				if strings.HasPrefix(pointer, "/steps/") || strings.HasPrefix(pointer, "/checks/") || strings.HasPrefix(pointer, "/parameters/") || pointer == "/owner" {
@@ -464,6 +488,14 @@ func doSessionLock(root, id string) (func(), error) {
 }
 
 func doWriteSession(root string, session DoSession, expected string, extra []fileTransactionUpdate) error {
+	if err := doProtectedPrivatePayload(session.Definition, session); err != nil {
+		return err
+	}
+	for _, update := range extra {
+		if err := doProtectedPrivatePayload(session.Definition, string(update.Content)); err != nil {
+			return err
+		}
+	}
 	target, err := secureProjectPath(root, doSessionRef(session.ID))
 	if err != nil {
 		return err
@@ -802,7 +834,11 @@ func doCaptureSource(root string, definition PlaybookDefinition, writeScopes ...
 		}
 	}
 	sort.Strings(relevant)
-	fingerprint := doDigest(map[string]any{"files": sources, "source_revision": head, "dirty_paths": relevant})
+	_, external, err := doExternalSnapshot(root, definition)
+	if err != nil {
+		return nil, "", "", nil, err
+	}
+	fingerprint := doSourceDigest(sources, head, relevant, external)
 	return sources, fingerprint, head, relevant, nil
 }
 

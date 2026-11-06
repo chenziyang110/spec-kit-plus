@@ -53,6 +53,13 @@ Preserve existing sessions and methods; never fall back to Python or authored st
    Repair all returned field diagnostics together and retry changed input.
    Prepare creates no session: never inspect a nonexistent proposed session,
    retry identical input, or repeatedly reload unchanged schemas.
+   External configuration requires `do.protected-inputs.v1` and installed
+   `.specify/scripts/shared/do_protected_process.py`. Declare `external_inputs:
+   {official_config: {environment: SPECIFY_OFFICIAL_CONFIG}}` in command or
+   definition; use whole `{{external:official_config}}` as script data argv.
+   Inherit the already configured local variable; never inspect/print its
+   value, include it in tool arguments, or copy the external file. Fix missing
+   binding diagnostics by name; use exit-code/file metadata checks only.
 5. Ask `do next <id>` for ready full actions and recording skeletons. Record
    the selected `started_input` before executing; fill `completion_event` and
    every `completion_required` fact from the actual tool call. Submit through
@@ -60,6 +67,12 @@ Preserve existing sessions and methods; never fall back to Python or authored st
    after each checkpoint; ready entries share a revision. Process observations
    use argv/cwd; other tools use typed native actions/results. Required output
    and independent effect checks still execute; receipts do not attest unseen calls.
+   For `protected_execution`, refresh next after started, pass its packet
+   unchanged on the supplied helper's stdin from project root and inherit the
+   environment. The helper resolves paths internally and discards child output.
+   Record symbolic argv/status/exit/times with empty summary, no raw logs or
+   configuration attachments, and sanitized recovery/closeout text. External
+   input changes invalidate evidence, even for source-writing steps.
 6. Repair agent-owned failures within scope. Use the contract's failed or
    unstarted replan branch; carry evidence only when explicit `retain_verified`
    receives runtime-approved receipts. Reconcile interrupted effects and

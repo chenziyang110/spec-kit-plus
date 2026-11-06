@@ -76,6 +76,15 @@ locate a triggered contract.
    one pass and retry the same operation. Prepare creates no session: never
    follow a fabricated `do show` for its proposed ID, repeat unchanged input,
    or reread the same schema to fill time.
+   For a repository-external configuration file, require `do.protected-inputs.v1`
+   and the installed `.specify/scripts/shared/do_protected_process.py` helper.
+   Declare `external_inputs: {official_config: {environment: SPECIFY_OFFICIAL_CONFIG}}`
+   inside `command` or `definition`, and use whole `{{external:official_config}}`
+   as the script's configuration data argument. The local environment must
+   already contain the absolute path; never read/print it, put it in tool
+   arguments, copy the file, or substitute it into a definition/session.
+   Missing bindings name the variable and exact field to fix. Use exit-code
+   or file metadata checks; content reports and logs are not retained.
 5. Use `do next <id>` for ready actions and recording skeletons. Submit one
    returned `started_input` through `do record` before executing its full frozen
    `action`; then fill `completion_event` only with actual tool observations and
@@ -83,6 +92,13 @@ locate a triggered contract.
    and a unique request ID. Process actions use argv/cwd; other native actions
    use their typed action and observation. Refresh next after each checkpoint;
    ready skeletons share one revision. Execute required effect/output checks.
+   If next returns `protected_execution`, refresh next after recording started
+   and send that packet unchanged to the supplied helper `execution_argv` on
+   stdin from the project root, inheriting the local environment. Execute
+   through this helper so resolved paths stay inside its process and child
+   output is discarded. Record the symbolic argv and safe observed facts;
+   keep summary empty, never attach raw logs/configuration, and use sanitized
+   recovery/closeout text. A changed external file invalidates the evidence.
 6. Use next's validation-backed readiness; expand `do validate <id>` when fresh
    diagnostics are needed. Repair bounded agent-owned failures and return to
    the failed check. Preserve failed attempts. Never copy old success receipts,

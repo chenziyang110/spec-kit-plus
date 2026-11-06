@@ -11,11 +11,12 @@ import (
 // facts into the existing definition; execution, evidence and Work stay owned
 // by the ordinary start/next/record/complete protocol.
 type doCommandInput struct {
-	Operation    string           `json:"operation"`
-	Cwd          string           `json:"cwd,omitempty"`
-	Argv         []string         `json:"argv"`
-	SourceWrites []string         `json:"source_writes,omitempty"`
-	Checks       []doCommandCheck `json:"checks"`
+	Operation      string                           `json:"operation"`
+	Cwd            string                           `json:"cwd,omitempty"`
+	Argv           []string                         `json:"argv"`
+	SourceWrites   []string                         `json:"source_writes,omitempty"`
+	ExternalInputs map[string]PlaybookExternalInput `json:"external_inputs,omitempty"`
+	Checks         []doCommandCheck                 `json:"checks"`
 }
 
 type doCommandCheck struct {
@@ -72,7 +73,8 @@ func doExpandCommand(root string, input doStartInput) (doStartInput, error) {
 		})
 	}
 	input.Definition = PlaybookDefinition{
-		Operation: command.Operation, Target: "project-script", Owner: scripts[0],
+		ExternalInputs: command.ExternalInputs,
+		Operation:      command.Operation, Target: "project-script", Owner: scripts[0],
 		Variant: "default", Title: input.Goal, Goal: input.Goal,
 		Aliases: []string{}, LearningRefs: []string{}, Applicability: map[string][]string{},
 		SourceFiles: scripts,
@@ -102,13 +104,16 @@ func doCommandInputSchema() map[string]any {
 		map[string]any{"if": map[string]any{"required": []string{"kind"}, "properties": map[string]any{"kind": map[string]any{"const": "json"}}}, "then": map[string]any{"required": []string{"expected_json"}}},
 		map[string]any{"if": map[string]any{"required": []string{"kind"}, "properties": map[string]any{"kind": map[string]any{"const": "junit"}}}, "then": map[string]any{"required": []string{"min_cases"}}},
 	}
-	return doSchemaObject(map[string]any{
-		"operation":     playbookDefinitionInputSchema()["properties"].(map[string]any)["operation"],
-		"cwd":           playbookActionSchema(false)["properties"].(map[string]any)["cwd"],
-		"argv":          map[string]any{"type": "array", "minItems": 1, "maxItems": 128, "items": map[string]any{"type": "string", "maxLength": 8192}},
-		"source_writes": playbookSchemaStrings(0, 64),
-		"checks":        map[string]any{"type": "array", "minItems": 1, "maxItems": 64, "items": check},
+	schema := doSchemaObject(map[string]any{
+		"operation":       playbookDefinitionInputSchema()["properties"].(map[string]any)["operation"],
+		"cwd":             playbookActionSchema(false)["properties"].(map[string]any)["cwd"],
+		"argv":            map[string]any{"type": "array", "minItems": 1, "maxItems": 128, "items": map[string]any{"type": "string", "maxLength": 8192}},
+		"source_writes":   playbookSchemaStrings(0, 64),
+		"external_inputs": doExternalInputSchema(),
+		"checks":          map[string]any{"type": "array", "minItems": 1, "maxItems": 64, "items": check},
 	}, "operation", "argv", "checks")
+	schema["allOf"] = doProtectedDefinitionConditions()
+	return schema
 }
 
 func doPrepareInputSchema() map[string]any {

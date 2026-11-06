@@ -129,6 +129,22 @@ func projectDoMetrics(session DoSession) doMetricsObservation {
 		}
 	}
 	observation.SourceBasisDigest = doDigest(basis)
+	if len(session.Definition.ExternalInputs) > 0 {
+		external := ""
+		for _, attempt := range session.Attempts {
+			if !doAttemptInCurrentDefinition(session, attempt) {
+				continue
+			}
+			if attempt.ExternalFingerprint == "" || (external != "" && external != attempt.ExternalFingerprint) {
+				observation.Comparable = false
+			}
+			external = attempt.ExternalFingerprint
+		}
+		if external == "" {
+			observation.Comparable = false
+		}
+		observation.SourceBasisDigest = doDigest(map[string]any{"files": basis, "external_inputs": external})
+	}
 	if session.Blocker != nil {
 		observation.Disposition = "blocked"
 		observation.BlockedEpisodes++

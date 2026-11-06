@@ -11,6 +11,11 @@ method, checks it against current source and tools, executes through native
 tools, verifies the result, and improves the same method when it has learned
 something reusable. First use needs neither a Playbook nor a feature workspace.
 
+Build scripts that need a local configuration outside the repository can use
+[protected external inputs](do-protected-inputs.md). Bindings preserve local
+paths/content in the process environment rather than in reusable methods or
+session logs; the native process helper discards child output.
+
 ## User-facing entrypoints
 
 For Codex:

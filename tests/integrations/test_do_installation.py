@@ -175,6 +175,9 @@ def test_real_init_installs_do_and_shared_playbook_schemas(profile, prefix, scri
     result = run_init(profile, script_type)
     assert f"${prefix}-do" in result.output
     core = IntegrationManifest.load("speckit", project)
+    protected_helper = ".specify/scripts/shared/do_protected_process.py"
+    assert (project / protected_helper).read_bytes() == (ROOT / "scripts/shared/do_protected_process.py").read_bytes()
+    assert protected_helper in core.files
     for name in ("playbook-definition.schema.json", "playbook-update.schema.json", "playbook-metrics.schema.json", "do-start.schema.json", "do-prepare.schema.json", "do-complete.schema.json", "do-resume.schema.json"):
         relative = f".specify/templates/artifacts/{name}"
         assert (project / relative).read_bytes() == (ROOT / "templates/artifacts" / name).read_bytes()

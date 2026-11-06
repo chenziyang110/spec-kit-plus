@@ -61,6 +61,7 @@ type DoAttempt struct {
 	DefinitionDigest        string                `json:"definition_digest"`
 	DefinitionEpoch         int                   `json:"definition_epoch,omitempty"`
 	SourceFingerprint       string                `json:"source_fingerprint"`
+	ExternalFingerprint     string                `json:"external_fingerprint,omitempty"`
 	Sources                 map[string]string     `json:"sources"`
 	AfterSourceFingerprint  string                `json:"after_source_fingerprint,omitempty"`
 	AfterSources            map[string]string     `json:"after_sources"`

@@ -126,7 +126,11 @@ func doPrepare(root string, input doStartInput) (map[string]any, error) {
 			return nil, err
 		}
 	}
-	return map[string]any{"start_input": input, "definition_digest": definitionDigest, "method_digest": methodDigest, "source_fingerprint": fingerprint, "start_argv": []string{"specify-runtime", "do", "start", "--input-json", "-", "--format", "json"}}, nil
+	data := map[string]any{"start_input": input, "definition_digest": definitionDigest, "method_digest": methodDigest, "source_fingerprint": fingerprint, "start_argv": []string{"specify-runtime", "do", "start", "--input-json", "-", "--format", "json"}}
+	if len(resolved.ExternalInputs) > 0 {
+		data["protected_inputs"] = map[string]any{"bindings": resolved.ExternalInputs, "ready": true, "persistence": "binding names, environment names and digests only; no resolved paths or contents", "execution": "use do next protected_execution with the bundled protected process helper; child output is discarded"}
+	}
+	return data, nil
 }
 
 func doReadWorkOwner(root string, session DoSession, agentID, adapterID string, requireActive bool) error {
@@ -243,7 +247,15 @@ func doNext(root string, session DoSession) (map[string]any, error) {
 		previous, exists := latest[id]
 		if exists && previous.Status == "running" {
 			event, facts := doCompletionSkeleton(action, previous.ID)
-			running = append(running, map[string]any{"target_id": id, "kind": kind, "action": doActionDefinition(session.Definition, id), "completion_event": event, "completion_required": facts})
+			entry := map[string]any{"target_id": id, "kind": kind, "action": doActionDefinition(session.Definition, id), "completion_event": event, "completion_required": facts}
+			if doProtectedAction(session, action) && previous.SourceFingerprint != fingerprint {
+				blocked = append(blocked, map[string]any{"target_id": id, "cause": "protected attempt inputs changed; inspect and recover the registered attempt before executing"})
+				continue
+			}
+			if err := doProtectedNext(root, session, action, previous.ID, fingerprint, entry); err != nil {
+				return nil, err
+			}
+			running = append(running, entry)
 			continue
 		}
 		if exists {
@@ -273,7 +285,11 @@ func doNext(root string, session DoSession) (map[string]any, error) {
 		attemptID := "a-" + key
 		event, facts := doCompletionSkeleton(action, attemptID)
 		started := doRecordInput{ExpectedRevision: session.Revision, RequestID: "start-" + key, Events: []doRecordEvent{{AttemptID: attemptID, TargetID: id, Kind: kind, Event: "started"}}}
-		ready = append(ready, map[string]any{"target_id": id, "kind": kind, "action": doActionDefinition(session.Definition, id), "started_input": started, "completion_event": event, "completion_required": facts})
+		entry := map[string]any{"target_id": id, "kind": kind, "action": doActionDefinition(session.Definition, id), "started_input": started, "completion_event": event, "completion_required": facts}
+		if err := doProtectedNext(root, session, action, attemptID, fingerprint, entry); err != nil {
+			return nil, err
+		}
+		ready = append(ready, entry)
 	}
 	data["ready"], data["running"], data["blocked"] = ready, running, blocked
 	if len(ready) == 0 && len(running) == 0 && len(blocked) == 0 {

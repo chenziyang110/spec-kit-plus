@@ -154,6 +154,9 @@ func playbookWithLock(root string, fn func() (map[string]any, error)) (map[strin
 }
 
 func updatePlaybook(root string, request PlaybookUpdateRequest) (map[string]any, error) {
+	if err := doProtectedPrivatePayload(request.Definition, request); err != nil {
+		return nil, err
+	}
 	if err := validatePlaybookDefinition(root, request.Definition); err != nil {
 		return nil, err
 	}

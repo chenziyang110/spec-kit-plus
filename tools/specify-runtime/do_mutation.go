@@ -53,8 +53,8 @@ func doValidateMutationLineage(session DoSession, attempt DoAttempt, latest map[
 	if err != nil || len(action.sourceWrites) == 0 || attempt.AfterSourceFingerprint == "" || attempt.AfterSources == nil {
 		return fmt.Errorf("source-writing attempt lacks its runtime-owned before/after source proof")
 	}
-	before := doDigest(map[string]any{"files": attempt.Sources, "source_revision": attempt.SourceRevision, "dirty_paths": attempt.DirtyPaths})
-	after := doDigest(map[string]any{"files": attempt.AfterSources, "source_revision": attempt.SourceRevision, "dirty_paths": attempt.AfterDirtyPaths})
+	before := doSourceDigest(attempt.Sources, attempt.SourceRevision, attempt.DirtyPaths, attempt.ExternalFingerprint)
+	after := doSourceDigest(attempt.AfterSources, attempt.SourceRevision, attempt.AfterDirtyPaths, attempt.ExternalFingerprint)
 	if before != attempt.SourceFingerprint || after != attempt.AfterSourceFingerprint {
 		return fmt.Errorf("source-writing attempt fingerprint proof changed")
 	}

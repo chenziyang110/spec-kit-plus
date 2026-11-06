@@ -69,6 +69,9 @@ func doApplyRecordEvent(root string, session DoSession, event doRecordEvent, pre
 	if err != nil {
 		return session, nil, err
 	}
+	if err := doProtectedRecord(session, event); err != nil {
+		return session, nil, err
+	}
 	index := -1
 	for i, a := range session.Attempts {
 		if a.ID == event.AttemptID {
@@ -115,7 +118,14 @@ func doApplyRecordEvent(root string, session DoSession, event doRecordEvent, pre
 			}
 			dependencyAttempts[dependency] = latest[dependency].ID
 		}
-		session.Attempts = append(session.Attempts, DoAttempt{ID: event.AttemptID, TargetID: event.TargetID, Kind: event.Kind, Status: "running", DefinitionDigest: session.DefinitionDigest, DefinitionEpoch: doCurrentDefinitionEpoch(session), SourceFingerprint: fingerprint, Sources: sources, SourceRevision: revision, DirtyPaths: dirty, RegisteredAt: doNow(), DependencyAttempts: dependencyAttempts, Argv: append([]string{}, action.argv...), Cwd: action.cwd, NativeAction: normalizePlaybookNativeAction(action.nativeAction)})
+		_, external, err := doExternalSnapshot(root, session.Definition)
+		if err != nil {
+			return session, nil, err
+		}
+		if doSourceDigest(sources, revision, dirty, external) != fingerprint {
+			return session, nil, fmt.Errorf("protected_input_changed_before_registration; refresh do next")
+		}
+		session.Attempts = append(session.Attempts, DoAttempt{ID: event.AttemptID, TargetID: event.TargetID, Kind: event.Kind, Status: "running", DefinitionDigest: session.DefinitionDigest, DefinitionEpoch: doCurrentDefinitionEpoch(session), SourceFingerprint: fingerprint, ExternalFingerprint: external, Sources: sources, SourceRevision: revision, DirtyPaths: dirty, RegisteredAt: doNow(), DependencyAttempts: dependencyAttempts, Argv: append([]string{}, action.argv...), Cwd: action.cwd, NativeAction: normalizePlaybookNativeAction(action.nativeAction)})
 		session.ExecutionOutcome = "pending"
 		return session, nil, nil
 	}
@@ -195,6 +205,13 @@ func doApplyRecordEvent(root string, session DoSession, event doRecordEvent, pre
 		return session, nil, err
 	}
 	changedSources := doChangedSourceFiles(attempt.Sources, afterSources)
+	_, external, err := doExternalSnapshot(root, session.Definition)
+	if err != nil {
+		return session, nil, err
+	}
+	if event.Status == "passed" && external != attempt.ExternalFingerprint {
+		return session, nil, fmt.Errorf("protected_input_changed_during_attempt; preserve the attempt and inspect before retry")
+	}
 	if event.Status == "passed" && fingerprint != attempt.SourceFingerprint {
 		if len(action.sourceWrites) == 0 || action.kind != "step" || afterRevision != attempt.SourceRevision {
 			return session, nil, fmt.Errorf("source changed during a nonmutating attempt; use an explicitly scoped source-writing step and run final checks")

@@ -20,6 +20,9 @@ var playbookPublicArtifactPath = regexp.MustCompile(`(?i)^(?:[a-z]:)?(?:[\\/]{1,
 // Inspect field values rather than JSON punctuation. Only the entropy fallback
 // gets syntax-aware exceptions; credentials and project policy always run first.
 func validatePlaybookSensitiveContent(root string, definition PlaybookDefinition) error {
+	if err := doProtectedPrivatePayload(definition, definition); err != nil {
+		return err
+	}
 	policy, _, err := (learningService{projectRoot: root}).loadLearningPolicy(true)
 	if err != nil {
 		return err

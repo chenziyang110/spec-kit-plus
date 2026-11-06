@@ -20,20 +20,21 @@ const playbookMaxJSONBytes = 256 * 1024
 // PlaybookDefinition is the ordered, reusable method. Runtime identity,
 // revisions, verification observations and usage counters are not agent input.
 type PlaybookDefinition struct {
-	TaskFamily    string                       `json:"task_family,omitempty"`
-	Parameters    map[string]PlaybookParameter `json:"parameters,omitempty"`
-	Operation     string                       `json:"operation"`
-	Target        string                       `json:"target"`
-	Owner         string                       `json:"owner"`
-	Variant       string                       `json:"variant"`
-	Title         string                       `json:"title"`
-	Goal          string                       `json:"goal"`
-	Aliases       []string                     `json:"aliases"`
-	Applicability map[string][]string          `json:"applicability"`
-	SourceFiles   []string                     `json:"source_files"`
-	Steps         []PlaybookStep               `json:"steps"`
-	Checks        []PlaybookCheck              `json:"checks"`
-	LearningRefs  []string                     `json:"learning_refs"`
+	TaskFamily     string                           `json:"task_family,omitempty"`
+	Parameters     map[string]PlaybookParameter     `json:"parameters,omitempty"`
+	ExternalInputs map[string]PlaybookExternalInput `json:"external_inputs,omitempty"`
+	Operation      string                           `json:"operation"`
+	Target         string                           `json:"target"`
+	Owner          string                           `json:"owner"`
+	Variant        string                           `json:"variant"`
+	Title          string                           `json:"title"`
+	Goal           string                           `json:"goal"`
+	Aliases        []string                         `json:"aliases"`
+	Applicability  map[string][]string              `json:"applicability"`
+	SourceFiles    []string                         `json:"source_files"`
+	Steps          []PlaybookStep                   `json:"steps"`
+	Checks         []PlaybookCheck                  `json:"checks"`
+	LearningRefs   []string                         `json:"learning_refs"`
 }
 
 type PlaybookStep struct {
@@ -269,6 +270,12 @@ func playbookNormalizeDefinition(definition PlaybookDefinition) PlaybookDefiniti
 	// Learning merge, this never sorts steps, argv, or verification order.
 	result := definition
 	result.Parameters = normalizePlaybookParameters(definition.Parameters)
+	if len(definition.ExternalInputs) > 0 {
+		result.ExternalInputs = map[string]PlaybookExternalInput{}
+		for name, binding := range definition.ExternalInputs {
+			result.ExternalInputs[name] = binding
+		}
+	}
 	result.Steps = append([]PlaybookStep{}, definition.Steps...)
 	result.Checks = append([]PlaybookCheck{}, definition.Checks...)
 	result.Applicability = map[string][]string{}
@@ -325,6 +332,9 @@ func playbookNormalizeDefinition(definition PlaybookDefinition) PlaybookDefiniti
 }
 
 func validateResolvedPlaybookDefinition(projectRoot string, definition PlaybookDefinition) error {
+	if err := doExternalDefinition(projectRoot, definition); err != nil {
+		return err
+	}
 	operations := map[string]bool{"build": true, "package": true, "test": true, "check": true, "generate": true, "maintenance": true, "custom": true}
 	if !operations[definition.Operation] {
 		return fmt.Errorf("playbook_operation_invalid")

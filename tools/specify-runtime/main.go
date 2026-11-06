@@ -1821,6 +1821,7 @@ func defaultCapabilities() []string {
 		"do.finish",
 		"do.resume",
 		"do.scoped-recovery.v1",
+		"do.protected-inputs.v1",
 		"do.show",
 		"playbook.find",
 		"playbook.show",
@@ -1997,6 +1998,8 @@ func capabilitySummary(id string) string {
 		return "Recover or explicitly replan a failed operation while preserving definition epochs, attempts, and scoped ownership."
 	case "do.scoped-recovery.v1":
 		return "Bind public script inputs, inspect unrelated external changes and retain verified process evidence through immutable definition epochs."
+	case "do.protected-inputs.v1":
+		return "Bind external files through local environment names without persisting paths or contents; execute symbolic packets through the protected native helper."
 	case "do.show":
 		return "Read one operation session or resolve an unambiguous active Work binding."
 	case "playbook.find":
