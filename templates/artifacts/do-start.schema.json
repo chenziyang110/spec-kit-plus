@@ -208,8 +208,9 @@
                 "else": {
                   "properties": {
                     "cwd": {
+                      "description": "Canonical project-relative working directory: '.' or a path such as 'src/tool', using '/' separators and no absolute, drive, UNC or '.'/'..' path segments. Declared {{param:name}} placeholders resolve before runtime path and symlink checks. Native actions omit cwd or use an empty string.",
                       "maxLength": 512,
-                      "minLength": 1,
+                      "pattern": "^(?:\\.|(?:(?:[^./\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})|\\.(?:[^./\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})|\\.\\.(?:[^/\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\}))(?:[^/\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})*(?:/(?:(?:[^./\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})|\\.(?:[^./\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})|\\.\\.(?:[^/\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\}))(?:[^/\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})*)*)$",
                       "type": "string"
                     }
                   },
@@ -250,7 +251,9 @@
                 "type": "array"
               },
               "cwd": {
+                "description": "Canonical project-relative working directory: '.' or a path such as 'src/tool', using '/' separators and no absolute, drive, UNC or '.'/'..' path segments. Declared {{param:name}} placeholders resolve before runtime path and symlink checks. Native actions omit cwd or use an empty string.",
                 "maxLength": 512,
+                "pattern": "^(?:\\.|(?:(?:[^./\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})|\\.(?:[^./\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})|\\.\\.(?:[^/\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\}))(?:[^/\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})*(?:/(?:(?:[^./\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})|\\.(?:[^./\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})|\\.\\.(?:[^/\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\}))(?:[^/\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})*)*)?$",
                 "type": "string"
               },
               "depends_on": {
@@ -396,11 +399,64 @@
         },
         "parameters": {
           "additionalProperties": false,
-          "description": "Nonsecret declared inputs. Use {{param:name}} in complete argv values or supported path/native input fields. Identity, tool names, scripts and dependencies remain fixed. Example values validate structure; they do not prove every parameter combination.",
+          "description": "Nonsecret declared inputs. Use {{param:name}} in complete argv values or supported path/native input fields. PowerShell permits data values only after a fixed project script selected by -File; executable, host options and script paths remain fixed, and shell-expression interpolation is forbidden. Identity, tool names, scripts and dependencies remain fixed. Example values validate structure; they do not prove every parameter combination.",
           "maxProperties": 32,
           "patternProperties": {
             "^[a-z][a-z0-9_]{0,47}$": {
               "additionalProperties": false,
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "kind": {
+                        "const": "string"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "pattern"
+                    ]
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "kind": {
+                        "const": "enum"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "allowed_values"
+                    ]
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "required": {
+                        "const": false
+                      }
+                    },
+                    "required": [
+                      "required"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "default"
+                    ]
+                  }
+                }
+              ],
               "properties": {
                 "allowed_values": {
                   "items": {
@@ -507,8 +563,9 @@
                       "minItems": 1
                     },
                     "cwd": {
+                      "description": "Canonical project-relative working directory: '.' or a path such as 'src/tool', using '/' separators and no absolute, drive, UNC or '.'/'..' path segments. Declared {{param:name}} placeholders resolve before runtime path and symlink checks. Native actions omit cwd or use an empty string.",
                       "maxLength": 512,
-                      "minLength": 1,
+                      "pattern": "^(?:\\.|(?:(?:[^./\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})|\\.(?:[^./\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})|\\.\\.(?:[^/\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\}))(?:[^/\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})*(?:/(?:(?:[^./\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})|\\.(?:[^./\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})|\\.\\.(?:[^/\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\}))(?:[^/\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})*)*)$",
                       "type": "string"
                     }
                   },
@@ -549,7 +606,9 @@
                 "type": "array"
               },
               "cwd": {
+                "description": "Canonical project-relative working directory: '.' or a path such as 'src/tool', using '/' separators and no absolute, drive, UNC or '.'/'..' path segments. Declared {{param:name}} placeholders resolve before runtime path and symlink checks. Native actions omit cwd or use an empty string.",
                 "maxLength": 512,
+                "pattern": "^(?:\\.|(?:(?:[^./\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})|\\.(?:[^./\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})|\\.\\.(?:[^/\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\}))(?:[^/\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})*(?:/(?:(?:[^./\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})|\\.(?:[^./\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})|\\.\\.(?:[^/\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\}))(?:[^/\\\\:\\x00\\r\\n]|\\{\\{param:[a-z][a-z0-9_]{0,47}\\}\\})*)*)?$",
                 "type": "string"
               },
               "depends_on": {

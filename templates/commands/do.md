@@ -43,12 +43,17 @@ locate a triggered contract.
 1. Resolve the goal, target, platform, output location, acceptance checks, and
    necessary write scope. Inspect live project entrypoints and relevant user
    instructions; do not guess a build command from a framework name.
-2. Consume applicable Learning with
-   `{{specify-subcmd:specify-runtime learning start --command do --format json}}`.
-   Expand only matching `show_argv`; use current cognition as advisory navigation
-   when repository ownership or entrypoint evidence is needed. A missing map
-   does not force map reconstruction before an ordinary operation.
-3. Retrieve compact method cards with
+2. **Execute first, learn after success.** On first use, when the maintained script is already
+   known, prepare its literal argv through `do prepare`'s compact `command`
+   input. Supply the goal, identity, output/write scopes and a small explicit
+   verification command or artifact check. Runtime supplies method metadata
+   and binds the script; do not author a reusable definition, invent parameters,
+   search method history, or rebuild cognition before this first execution.
+   Read applicable project constraints; consult Learning only when a current
+   pitfall or constraint affects this operation.
+3. On subsequent similar work, do one compact method lookup and prefer an
+   applicable verified method. Also use lookup when the entrypoint is unknown.
+   Retrieve compact method cards with
    `{{specify-subcmd:specify-runtime playbook find --query "$ARGUMENTS" --format json}}`.
    Narrow operation, target, observed context, and actual parameters when known. Follow a matching
    card's `show_argv`, then only needed `expand_argv`. Compare applicability,
@@ -57,12 +62,20 @@ locate a triggered contract.
    when comparable history can inform the choice; expand recovery only for a
    matching failure. Neither is a new success or permission to execute.
 4. Inspect `{{specify-subcmd:specify-runtime api show do.prepare --format json}}`
-   and its schema. Prepare the selected template, actual parameters, context,
+   and its schema once; reuse that contract for the same invocation. Prefer
+   `command: {operation, argv, checks}` for an existing project script; cwd
+   defaults to `.`. Use literal current values on first execution. If the
+   pinned schema lacks this shortcut, use one minimal literal definition;
+   do not repeatedly parameterize or redesign it. Otherwise prepare the selected template, actual parameters, context,
    and scope read-only; send its returned `start_input` unchanged to `do start`.
    Start rechecks current conditions. For an explicit existing session use
    `do show <id>` followed by `do resume <id>`. `do show --active` is read-only;
    multiple candidates require an explicit session identity, never latest-file
    selection. Keep the selected revision and template digest bound.
+   On prepare failure, correct all returned `validation_errors` in memory in
+   one pass and retry the same operation. Prepare creates no session: never
+   follow a fabricated `do show` for its proposed ID, repeat unchanged input,
+   or reread the same schema to fill time.
 5. Use `do next <id>` for ready actions and recording skeletons. Submit one
    returned `started_input` through `do record` before executing its full frozen
    `action`; then fill `completion_event` only with actual tool observations and
@@ -80,7 +93,9 @@ locate a triggered contract.
 7. Read [closeout](references/closeout.md). After source closeout and required
    checks, use `do next`'s `complete_input` plus a truthful `change_summary` with
    `do complete` to finish execution, save the verified template/usage, and
-   finish knowledge. Meaningful Learning, proposals, no-knowledge disposition,
+   finish knowledge. Save the actually verified procedure after success;
+   generalizing parameters or writing extensive method metadata is optional
+   future reuse work, never an execution prerequisite. Meaningful Learning, proposals, no-knowledge disposition,
    and blockers use the explicit closeout branches. A persistence failure
    resumes knowledge without rerunning successful execution; require terminal
    success before reporting completion.

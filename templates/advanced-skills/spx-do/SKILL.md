@@ -22,24 +22,37 @@ Preserve existing sessions and methods; never fall back to Python or authored st
    environment, output scope, and authorized source write scope. Preserve other
    work and existing external-side-effect approvals. Do not create a formal
    feature, Activity, second Work, or retired Run; `do start` binds `do:<id>`.
-2. Consume relevant Learning under canonical `do`; read
-   `references/project-learning.md` for its runtime policy. Use cognition as
+2. **Execute first, learn after success.** On first use of a known maintained script, use
+   prepare's compact `command` input with literal current argv, explicit small
+   checks and authorized scopes. Runtime derives metadata and binds the script.
+   Do not design a reusable method, add parameter declarations, retrieve method
+   history or rebuild a map before the first execution. Read relevant project
+   constraints; consume Learning only when a current pitfall or rule affects
+   this operation. Use cognition as
    advisory navigation when needed; read `references/project-cognition.md` for
    its routing contract, and let live source prove current applicability.
    A missing map does not force reconstruction before an ordinary operation.
-3. Run `{{specify-subcmd:specify-runtime playbook find --query "$ARGUMENTS" --format json}}`;
+3. On subsequent similar work, do one compact lookup and prefer an applicable
+   verified method. Also use lookup when the entrypoint is unknown.
+   Run `{{specify-subcmd:specify-runtime playbook find --query "$ARGUMENTS" --format json}}`;
    filter by observed operation/target/context and actual parameters. Follow matching `show_argv` and
    only required `expand_argv`. Inspect current prerequisites and referenced
    scripts before applying a pinned revision. Stored commands do not grant
    permission. No match is a normal live-discovery path. Use observed ranking
    only for comparable-history decisions and expand recovery for matching failures.
 4. Inspect `{{specify-subcmd:specify-runtime api show do.prepare --format json}}`
-   and its schema. Prepare the exact template, parameter values, method binding,
+   and its schema once. Prefer `command: {operation, argv, checks}` for a known
+   script; cwd defaults to `.`, and runtime fills method boilerplate. If the
+   pinned schema lacks it, prepare one minimal literal definition without
+   parameterizing it. Otherwise prepare the exact template, parameter values, method binding,
    context, source files, scopes and real leader `agent_id` read-only; send its
    returned `start_input` unchanged to `do start`, which rechecks live conditions.
    Use `adapter_id="__AGENT__"`; same-adapter ambiguity still needs an explicit ID.
    Resume only an explicit session ID through `do show` / `do resume`.
    `do show --active` never licenses selecting the latest ambiguous candidate.
+   Repair all returned field diagnostics together and retry changed input.
+   Prepare creates no session: never inspect a nonexistent proposed session,
+   retry identical input, or repeatedly reload unchanged schemas.
 5. Ask `do next <id>` for ready full actions and recording skeletons. Record
    the selected `started_input` before executing; fill `completion_event` and
    every `completion_required` fact from the actual tool call. Submit through
@@ -54,6 +67,8 @@ Preserve existing sessions and methods; never fall back to Python or authored st
    or `do validate`; readiness alone is not terminal.
 7. Normally supply `change_summary` with next's `complete_input` to `do complete`
    for validated execution, template/usage publication and final saved knowledge.
+   Record the successful method after execution; generalization and extra
+   parameterization are optional reuse improvements, not prerequisites.
    Use the explicit pending/Learning/manual-publication branch when needed;
    use `not_applicable` when no reusable method or usage should be retained.
    Proposals cannot replace verified methods, and unchanged reuse cannot create

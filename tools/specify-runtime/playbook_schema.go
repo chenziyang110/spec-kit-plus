@@ -8,6 +8,20 @@ func playbookSchemaStrings(minimum, maximum int) map[string]any {
 	return map[string]any{"type": "array", "minItems": minimum, "maxItems": maximum, "items": playbookSchemaString(512), "uniqueItems": true}
 }
 
+func playbookCwdSchema(allowEmpty bool) map[string]any {
+	atom := `(?:[^/\\:\x00\r\n]|\{\{param:[a-z][a-z0-9_]{0,47}\}\})`
+	first := `(?:[^./\\:\x00\r\n]|\{\{param:[a-z][a-z0-9_]{0,47}\}\})`
+	component := `(?:` + first + `|\.` + first + `|\.\.` + atom + `)` + atom + `*`
+	pattern := `(?:\.|` + component + `(?:/` + component + `)*)`
+	if allowEmpty {
+		pattern += `?`
+	}
+	return map[string]any{
+		"type": "string", "maxLength": 512, "pattern": `^` + pattern + `$`,
+		"description": "Canonical project-relative working directory: '.' or a path such as 'src/tool', using '/' separators and no absolute, drive, UNC or '.'/'..' path segments. Declared {{param:name}} placeholders resolve before runtime path and symlink checks. Native actions omit cwd or use an empty string.",
+	}
+}
+
 func playbookActionSchema(check bool) map[string]any {
 	properties := map[string]any{
 		"native_action": playbookNativeActionSchema(),
@@ -44,13 +58,13 @@ func playbookActionSchema(check bool) map[string]any {
 		}
 	}
 	conditions, _ := schema["allOf"].([]any)
-	processFields := map[string]any{"required": []string{"cwd", "argv"}, "properties": map[string]any{"cwd": playbookSchemaString(512)}}
+	processFields := map[string]any{"required": []string{"cwd", "argv"}, "properties": map[string]any{"cwd": playbookCwdSchema(false)}}
 	if !check {
 		processFields["properties"].(map[string]any)["argv"] = map[string]any{"minItems": 1}
 	}
 	conditions = append(conditions, map[string]any{"if": map[string]any{"required": []string{"native_action"}}, "then": map[string]any{"properties": map[string]any{"cwd": map[string]any{"const": ""}, "argv": map[string]any{"maxItems": 0}}, "not": map[string]any{"required": []string{"script_ref"}}}, "else": processFields})
 	schema["allOf"] = conditions
-	properties["cwd"] = map[string]any{"type": "string", "maxLength": 512}
+	properties["cwd"] = playbookCwdSchema(true)
 	schema["required"] = required
 	return schema
 }

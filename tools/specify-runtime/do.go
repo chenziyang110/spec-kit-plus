@@ -270,6 +270,15 @@ func doError(stdout io.Writer, err error, id string, schemas ...string) int {
 	}
 	if len(schemas) > 0 {
 		env.Data["schema_argv"] = []string{"specify-runtime", "api", "schema", schemas[0], "--format", "json"}
+		if inputError == nil {
+			if match := regexp.MustCompile(`pointer=([^\s]+)`).FindStringSubmatch(err.Error()); match != nil {
+				pointer := match[1]
+				if strings.HasPrefix(pointer, "/steps/") || strings.HasPrefix(pointer, "/checks/") || strings.HasPrefix(pointer, "/parameters/") || pointer == "/owner" {
+					pointer = "/definition" + pointer
+				}
+				env.Data["validation_errors"] = []playbookJSONIssue{{InstancePath: pointer, Keyword: "semantic", Message: strings.TrimSpace(strings.SplitN(err.Error(), "pointer=", 2)[0])}}
+			}
+		}
 	}
 	if doIDPattern.MatchString(id) {
 		env.ShowArgv = []string{"specify-runtime", "do", "show", id, "--format", "json"}
@@ -539,6 +548,9 @@ func doScopeContains(scope []string, p string) bool {
 }
 
 func doStart(root string, input doStartInput) (DoSession, error) {
+	if input.Command != nil {
+		return DoSession{}, fmt.Errorf("command is prepare-only; pass the canonical start_input returned by do prepare")
+	}
 	var empty DoSession
 	if strings.TrimSpace(input.AgentID) == "" || strings.TrimSpace(input.AdapterID) == "" {
 		return empty, fmt.Errorf("agent_id and adapter_id are required")

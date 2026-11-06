@@ -730,7 +730,7 @@ func TestDoOversizeCheckpointCannotReplaceReadableState(t *testing.T) {
 }
 
 func TestDoPublishedInputSchemasMatchRuntime(t *testing.T) {
-	for filename, schema := range map[string]map[string]any{"do-start.schema.json": doStartInputSchema(), "do-prepare.schema.json": doStartInputSchema(), "do-record.schema.json": doRecordInputSchema(), "do-finish.schema.json": doFinishInputSchema(), "do-complete.schema.json": doCompleteInputSchema(), "do-resume.schema.json": doResumeInputSchema()} {
+	for filename, schema := range map[string]map[string]any{"do-start.schema.json": doStartInputSchema(), "do-prepare.schema.json": doPrepareInputSchema(), "do-record.schema.json": doRecordInputSchema(), "do-finish.schema.json": doFinishInputSchema(), "do-complete.schema.json": doCompleteInputSchema(), "do-resume.schema.json": doResumeInputSchema()} {
 		raw, err := os.ReadFile(filepath.Join("..", "..", "templates", "artifacts", filename))
 		if err != nil {
 			t.Fatal(err)

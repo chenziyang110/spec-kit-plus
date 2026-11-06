@@ -32,7 +32,7 @@ func runAPISchema(args []string, stdout io.Writer) int {
 		schema = cognitionScopedRegistrationInputSchema()
 		capabilityID = "cognition.scoped-registration.v1"
 	case "do-prepare-input":
-		schema = doStartInputSchema()
+		schema = doPrepareInputSchema()
 		capabilityID = "do.prepare"
 	case "do-complete-input":
 		schema = doCompleteInputSchema()

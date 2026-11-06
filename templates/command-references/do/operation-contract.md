@@ -16,7 +16,12 @@ CI definitions, and relevant tests. A nearby command name or remembered tool
 version is insufficient. Do not scan the whole repository when a method card
 and its source references already identify the owners to inspect.
 
-Use `playbook find --query <goal>` for compact candidates. Add supported
+On first use of a known maintained script, execute its current literal command using
+the compact `do prepare` command input; method lookup and reusable parameter
+design are not prerequisites. Supply explicit acceptance checks and scopes;
+the runtime creates the minimal definition and binds the script. Save the
+verified method after the operation succeeds. Use `playbook find --query <goal>`
+for compact candidates when discovery or actual reuse is needed. Add supported
 `--operation`, `--target`, and `--context-json` filters from observed facts, not
 guessed synonyms. Operations are `build`, `package`, `test`, `check`, `generate`,
 `maintenance`, or `custom`. No results is a normal first-use path: derive a
@@ -39,7 +44,7 @@ Expand `playbook metrics --id <id>` or `do show <id> --section metrics` only
 when timing/outcome detail is useful. Failures, interruptions and blocks remain
 visible; successful usage alone is not a success-rate denominator.
 
-Use a stable `task_family` for related methods and declare variable nonsecret
+On later reuse, use a stable `task_family` for related methods and declare variable nonsecret
 inputs in the definition's typed `parameters`; supply actual string values in
 start's `parameters` or lookup's `--parameters-json`. `{{param:name}}` tokens
 expand as data. An argv token must occupy a whole non-executable argument;
@@ -81,7 +86,12 @@ digests instead of secrets, full environment dumps, personal paths, or raw logs.
 ## Session and Scope
 
 Use `api show do.prepare` and its schema, then `do prepare --input-json <json|->`
-to validate the start contract read-only. Bind the goal, exact template and
+to validate the start contract read-only. Existing-script first use can supply
+`command: {operation, argv, checks}`: runtime fills method metadata and one
+required step, with explicit verification argv or file/json/junit checks.
+Checks are never the packaging command repeated by default and never invented
+success. Cwd defaults to `.`; scripts and scopes are rechecked by normal start.
+Bind the goal, exact template and
 actual parameters, selected
 `method_binding` when applicable, observed context, relevant source files,
 authorized `write_scope`, separate `output_scope`, and actual agent/adapter

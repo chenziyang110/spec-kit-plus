@@ -20,6 +20,11 @@ type doCompleteInput struct {
 // Preparing never starts Work or takes a write lock. The returned template is
 // still checked by start against the live method, sources, scopes, and owner.
 func doPrepare(root string, input doStartInput) (map[string]any, error) {
+	var err error
+	input, err = doExpandCommand(root, input)
+	if err != nil {
+		return nil, err
+	}
 	input.AgentID, input.AdapterID = strings.TrimSpace(input.AgentID), strings.TrimSpace(input.AdapterID)
 	if input.AgentID == "" || input.AdapterID == "" {
 		return nil, fmt.Errorf("agent_id and adapter_id are required")
@@ -52,6 +57,9 @@ func doPrepare(root string, input doStartInput) (map[string]any, error) {
 	}
 	input.Definition.SourceFiles = append(append([]string{}, input.Definition.SourceFiles...), input.SourceFiles...)
 	input.SourceFiles = nil // Already in the canonical template; start must not append twice.
+	if err := doPrepareDefinitionIssues(root, input.Definition); err != nil {
+		return nil, err
+	}
 	if err := validatePlaybookDefinition(root, input.Definition); err != nil {
 		return nil, err
 	}

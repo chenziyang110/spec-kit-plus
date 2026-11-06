@@ -153,6 +153,7 @@ type DoPlaybookValidationReceipt struct {
 }
 
 type doStartInput struct {
+	Command       *doCommandInput    `json:"command,omitempty"`
 	Parameters    map[string]string  `json:"parameters,omitempty"`
 	SessionID     string             `json:"session_id,omitempty"`
 	Goal          string             `json:"goal"`

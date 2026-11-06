@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path"
 	"regexp"
 	"sort"
@@ -99,6 +100,18 @@ func validatePlaybookSensitiveContent(root string, definition PlaybookDefinition
 			if key == "argv" {
 				if basename := playbookPublicArtifactBasename(item); basename != "" {
 					publicTokens[basename] = true
+				}
+			}
+			// A canonical owner may name an existing project script rather than
+			// a person or service. Exempt only its verified path components from
+			// entropy; deterministic credentials and project policy still apply.
+			if pointer == "/owner" && playbookScriptPath(item) && playbookPublicPathToken.MatchString(item) {
+				if target, pathErr := playbookSafePath(root, item, false); pathErr == nil {
+					if info, statErr := os.Lstat(target); statErr == nil && info.Mode().IsRegular() {
+						for _, part := range strings.Split(item, "/") {
+							publicTokens[part] = true
+						}
+					}
 				}
 			}
 			if key == "source_files" || key == "script_ref" || key == "cwd" || (key == "argv" && playbookScriptPath(item)) {

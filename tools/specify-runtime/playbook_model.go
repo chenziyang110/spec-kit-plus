@@ -373,8 +373,8 @@ func validateResolvedPlaybookDefinition(projectRoot string, definition PlaybookD
 			cwd = "."
 		}
 		if err := validatePlaybookAction(projectRoot, step.ID, step.Purpose, cwd, step.Argv, step.ScriptRef, step.DependsOn, step.ExpectedResult, seen, step.NativeAction == nil); err != nil {
-			if strings.Contains(err.Error(), "pointer=/argv/") {
-				return fmt.Errorf("%s", strings.Replace(err.Error(), "pointer=/argv/", fmt.Sprintf("pointer=/steps/%d/argv/", index), 1))
+			if strings.Contains(err.Error(), "pointer=/") {
+				return fmt.Errorf("%s", strings.Replace(err.Error(), "pointer=/", fmt.Sprintf("pointer=/steps/%d/", index), 1))
 			}
 			return fmt.Errorf("%w: pointer=/steps/%d", err, index)
 		}
@@ -410,8 +410,8 @@ func validateResolvedPlaybookDefinition(projectRoot string, definition PlaybookD
 			cwd = "."
 		}
 		if err := validatePlaybookAction(projectRoot, check.ID, check.Purpose, cwd, check.Argv, check.ScriptRef, check.DependsOn, check.ExpectedResult, seen, check.Kind == "exit_code"); err != nil {
-			if strings.Contains(err.Error(), "pointer=/argv/") {
-				return fmt.Errorf("%s", strings.Replace(err.Error(), "pointer=/argv/", fmt.Sprintf("pointer=/checks/%d/argv/", index), 1))
+			if strings.Contains(err.Error(), "pointer=/") {
+				return fmt.Errorf("%s", strings.Replace(err.Error(), "pointer=/", fmt.Sprintf("pointer=/checks/%d/", index), 1))
 			}
 			return fmt.Errorf("%w: pointer=/checks/%d", err, index)
 		}
@@ -476,7 +476,7 @@ func validatePlaybookAction(root, id, purpose, cwd string, argv []string, script
 		return fmt.Errorf("playbook_step_or_check_invalid")
 	}
 	if _, err := playbookSafePath(root, cwd, true); err != nil {
-		return err
+		return fmt.Errorf("%w: pointer=/cwd", err)
 	}
 	if len(argv) > 128 || (requireArgv && len(argv) == 0) {
 		return fmt.Errorf("playbook_argv_invalid")

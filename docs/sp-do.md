@@ -25,6 +25,29 @@ Other integrations use their native command spelling; follow the installed
 catalog. Both profiles accept natural-language goals. Users do not need to
 author session JSON themselves.
 
+First use is execution-first: inspect the maintained script, prepare its literal
+current command and a small verification check, execute it, then save the
+verified method. Do not parameterize a one-off revision or author reusable
+metadata before producing the requested output. On later similar work, one
+compact method lookup can reuse that verified procedure; metrics and history
+expansion are unnecessary unless a current problem requires them.
+
+The prepare-only `command` shortcut accepts the goal, real agent/adapter identity,
+explicit scopes and `command: {operation, argv, checks}`. It derives method
+metadata and binds the fixed project script. Cwd defaults to `.`; checks can be
+small verification argv or explicit file/json/junit result checks. It never
+reruns the build as a default check. Pass the returned canonical `start_input`
+unchanged to `do start`, then execute through the normal native tool packets.
+Complete saves the method only after actual execution and verification.
+
+For fixed PowerShell `-File` scripts, whole argv data parameters after the script
+may be bound on later reuse; executable, host mode, script and cwd stay fixed.
+String parameters require `pattern`, enums require `allowed_values`, and
+optional parameters require `default`; these conditions are in the public
+schema. Cwd is `.` or a canonical project-relative path. Prepare reports
+independent parameter/cwd mistakes together and never directs recovery to an
+uncreated session.
+
 When several Do sessions belong to the same integration, select the requested
 session explicitly with the native invocation suffix `resume <session-id>`, for
 example `/sp-do resume first-use` in Claude or `$spx-do resume first-use` in

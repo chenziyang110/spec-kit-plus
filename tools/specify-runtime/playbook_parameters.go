@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
+	"path"
 	"reflect"
 	"regexp"
 	"strings"
@@ -75,7 +75,7 @@ func validatePlaybookParameter(root, name string, parameter PlaybookParameter, v
 	switch parameter.Kind {
 	case "string":
 		if parameter.Pattern == "" {
-			return fmt.Errorf("playbook_string_parameter_requires_pattern: %s", name)
+			return fmt.Errorf("playbook_string_parameter_requires_pattern: %s: pointer=%s", name, playbookJSONPointer(playbookJSONPointer("", "parameters"), name)+"/pattern")
 		}
 	case "enum":
 		if len(parameter.AllowedValues) == 0 {
@@ -186,8 +186,12 @@ func resolvePlaybookDefinition(root string, definition PlaybookDefinition, suppl
 			return value
 		})
 	}
-	expandArgv := func(argv []string) []string {
+	expandArgv := func(cwd string, argv []string, parameterizedCwd bool) []string {
 		result := append([]string{}, argv...)
+		fileScript := playbookPowerShellFileScriptIndex(root, cwd, argv)
+		if parameterizedCwd {
+			fileScript = -1 // The new -File exception must not parameterize script selection.
+		}
 		for i, argument := range result {
 			if !strings.Contains(argument, "{{param:") {
 				continue
@@ -197,13 +201,16 @@ func resolvePlaybookDefinition(root string, definition PlaybookDefinition, suppl
 				continue
 			}
 			if len(argv) > 0 {
-				command := strings.TrimSuffix(strings.ToLower(filepath.Base(argv[0])), ".exe")
-				if command == "sh" || command == "bash" || command == "zsh" || command == "cmd" || command == "powershell" || command == "pwsh" {
+				command := strings.TrimSuffix(strings.ToLower(path.Base(strings.ReplaceAll(argv[0], "\\", "/"))), ".exe")
+				if command == "sh" || command == "bash" || command == "zsh" || command == "cmd" || ((command == "powershell" || command == "pwsh") && (fileScript < 0 || i <= fileScript)) {
 					expansionError = fmt.Errorf("playbook_parameter_shell_command_expansion_forbidden")
 					continue
 				}
 			}
 			result[i] = expand(argument)
+			if fileScript >= 0 && strings.HasPrefix(result[i], "-") {
+				expansionError = fmt.Errorf("playbook_parameter_shell_command_expansion_forbidden")
+			}
 		}
 		return result
 	}
@@ -262,7 +269,9 @@ func resolvePlaybookDefinition(root string, definition PlaybookDefinition, suppl
 	}
 	for i := range definition.Steps {
 		step := &definition.Steps[i]
-		step.Argv, step.Cwd, step.ExpectedResult = expandArgv(step.Argv), expand(step.Cwd), expand(step.ExpectedResult)
+		parameterizedCwd := strings.Contains(step.Cwd, "{{param:")
+		step.Cwd = expand(step.Cwd)
+		step.Argv, step.ExpectedResult = expandArgv(step.Cwd, step.Argv, parameterizedCwd), expand(step.ExpectedResult)
 		step.NativeAction = expandNative(step.NativeAction)
 		for j := range step.SourceWrites {
 			step.SourceWrites[j] = expand(step.SourceWrites[j])
@@ -270,7 +279,9 @@ func resolvePlaybookDefinition(root string, definition PlaybookDefinition, suppl
 	}
 	for i := range definition.Checks {
 		check := &definition.Checks[i]
-		check.Argv, check.Cwd, check.ResultPath = expandArgv(check.Argv), expand(check.Cwd), expand(check.ResultPath)
+		parameterizedCwd := strings.Contains(check.Cwd, "{{param:")
+		check.Cwd = expand(check.Cwd)
+		check.Argv, check.ResultPath = expandArgv(check.Cwd, check.Argv, parameterizedCwd), expand(check.ResultPath)
 		check.ExpectedResult, check.ExpectedJSON = expand(check.ExpectedResult), expandJSON(check.ExpectedJSON)
 		check.NativeAction = expandNative(check.NativeAction)
 	}
@@ -289,6 +300,52 @@ func resolvePlaybookDefinition(root string, definition PlaybookDefinition, suppl
 		bindings = nil
 	}
 	return definition, bindings, nil
+}
+
+// -File passes later argv as script data. Keep the executable, host options and
+// existing project script fixed; -Command and unknown host forms never qualify.
+func playbookPowerShellFileScriptIndex(root, cwd string, argv []string) int {
+	if len(argv) < 3 {
+		return -1
+	}
+	command := strings.TrimSuffix(strings.ToLower(path.Base(strings.ReplaceAll(argv[0], "\\", "/"))), ".exe")
+	if command != "pwsh" && command != "powershell" {
+		return -1
+	}
+	for i := 1; i < len(argv); i++ {
+		switch strings.ToLower(argv[i]) {
+		case "-nologo", "-noprofile", "-noninteractive", "-sta", "-mta":
+		case "-executionpolicy":
+			i++
+			if i >= len(argv) {
+				return -1
+			}
+			switch strings.ToLower(argv[i]) {
+			case "allsigned", "bypass", "default", "remotesigned", "restricted", "undefined", "unrestricted":
+			default:
+				return -1
+			}
+		case "-file", "-f":
+			if i+1 >= len(argv) {
+				return -1
+			}
+			script := strings.ReplaceAll(argv[i+1], "\\", "/")
+			if !strings.EqualFold(path.Ext(script), ".ps1") || strings.HasPrefix(script, "/") || strings.ContainsAny(script, ":$%{}\"'`;|&()*?[]\x00\r\n") {
+				return -1
+			}
+			relative := path.Clean(path.Join(cwd, script))
+			if _, err := playbookSafePath(root, relative, false); err != nil {
+				return -1
+			}
+			if _, err := secureProjectReadFile(root, relative); err != nil {
+				return -1
+			}
+			return i + 1
+		default:
+			return -1
+		}
+	}
+	return -1
 }
 
 func doMethodDefinition(session DoSession) PlaybookDefinition {
@@ -331,7 +388,12 @@ func playbookParameterSchema() map[string]any {
 		"kind": doSchemaEnum("string", "enum", "path"), "required": map[string]any{"type": "boolean"}, "example": playbookSchemaString(4096), "default": playbookSchemaString(4096),
 		"allowed_values": playbookSchemaStrings(1, 32), "pattern": playbookSchemaString(512), "max_length": map[string]any{"type": "integer", "minimum": 1, "maximum": 4096},
 	}, "kind", "required", "example")
-	return map[string]any{"type": "object", "maxProperties": 32, "additionalProperties": false, "patternProperties": map[string]any{playbookParameterName.String(): parameter}, "description": "Nonsecret declared inputs. Use {{param:name}} in complete argv values or supported path/native input fields. Identity, tool names, scripts and dependencies remain fixed. Example values validate structure; they do not prove every parameter combination."}
+	parameter["allOf"] = []any{
+		map[string]any{"if": map[string]any{"required": []string{"kind"}, "properties": map[string]any{"kind": map[string]any{"const": "string"}}}, "then": map[string]any{"required": []string{"pattern"}}},
+		map[string]any{"if": map[string]any{"required": []string{"kind"}, "properties": map[string]any{"kind": map[string]any{"const": "enum"}}}, "then": map[string]any{"required": []string{"allowed_values"}}},
+		map[string]any{"if": map[string]any{"required": []string{"required"}, "properties": map[string]any{"required": map[string]any{"const": false}}}, "then": map[string]any{"required": []string{"default"}}},
+	}
+	return map[string]any{"type": "object", "maxProperties": 32, "additionalProperties": false, "patternProperties": map[string]any{playbookParameterName.String(): parameter}, "description": "Nonsecret declared inputs. Use {{param:name}} in complete argv values or supported path/native input fields. PowerShell permits data values only after a fixed project script selected by -File; executable, host options and script paths remain fixed, and shell-expression interpolation is forbidden. Identity, tool names, scripts and dependencies remain fixed. Example values validate structure; they do not prove every parameter combination."}
 }
 
 func validatePlaybookVerificationInstance(root string, definition PlaybookDefinition, verification DoPlaybookValidationReceipt) error {
