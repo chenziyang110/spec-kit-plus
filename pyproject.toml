@@ -6,7 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "anyio>=4.15.1",
     "typer",
-    "click>=8.5.0",
+    "click>=8.5.1",
     "rich",
     "platformdirs",
     "readchar>=4.2.2",
