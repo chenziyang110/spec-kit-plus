@@ -5,8 +5,8 @@ implementation, integrated review and human acceptance without losing state.
 
 ## Start with your goal
 
-You do not need to learn the whole workflow catalog before starting.
-[Start Here](start-here.md) explains setup and the first interaction.
+[Start Here](start-here.md) walks through a tagged install, choosing an agent,
+and starting the first workflow.
 
 | What you need now | Existing workflow | Boundary |
 | --- | --- | --- |
@@ -33,15 +33,16 @@ extra steps. Quick is a different delivery path, not permission to skip evidence
 
 | Goal | Guide |
 | --- | --- |
-| Install and pin a compatible CLI/runtime | [Installation](installation.md) |
+| Install a released CLI and choose an agent | [Installation](installation.md) |
 | Complete a first workflow | [Quick Start](quickstart.md) |
-| Upgrade or repair generated assets | [Upgrade](upgrade.md) |
+| Upgrade or repair the CLI and project runtime | [Upgrade](upgrade.md) |
+| Move managed skills to `.agents/skills` | [Skill layout migration](upgrade.md#migrate-an-installed-skill-layout) |
 | Diagnose tools and installed project compatibility | Run `specify check` |
 | Investigate missing or failing CI evidence | [CI troubleshooting](ci-troubleshooting.md) |
 
-An untagged Git installation follows development head. Prefer an explicitly
-selected published source tag for reproducible use. Source access is required
-for private Git installs; public runtime binaries do not make the source public.
+An untagged Git installation follows development head. Use a source tag for a
+reproducible CLI version. The matching runtime binaries are available on the
+[public release page](https://github.com/chenziyang110/spec-kit-plus-releases/releases).
 
 ## Maintainer and reference documentation
 
@@ -57,4 +58,4 @@ for private Git installs; public runtime binaries do not make the source public.
 
 The [repository README](../README.md) retains the extended command/reference
 material. Product questions and reproducible defects belong in the
-[private repository issue tracker](https://github.com/chenziyang110/spec-kit-plus/issues).
+[repository issue tracker](https://github.com/chenziyang110/spec-kit-plus/issues).

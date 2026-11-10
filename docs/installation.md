@@ -2,66 +2,59 @@
 
 ## Prerequisites
 
-- **Linux/macOS** (or Windows; PowerShell scripts now supported without WSL)
-- AI coding agent: [Claude Code](https://www.anthropic.com/claude-code), [GitHub Copilot](https://code.visualstudio.com/), [Codebuddy CLI](https://www.codebuddy.ai/cli), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [MiMo Code](https://mimo.xiaomi.com/mimocode/start), or [Pi Coding Agent](https://pi.dev)
+- Windows, Linux, or macOS. Windows can use PowerShell without WSL.
+- A supported AI coding agent. See the integration keys below or run `specify init --help` for the full list.
 - [uv](https://docs.astral.sh/uv/) for package management
 - [Python 3.11+](https://www.python.org/downloads/)
 - [Git](https://git-scm.com/downloads)
 
 ## Installation
 
-### Install or Upgrade Spec Kit Plus
-
-Spec Kit Plus is independently developed and distributed from this repository:
-
-```powershell
-python -m pip uninstall -y specify-cli
-uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git
-Get-Command specify -All
-specify --help
-```
-
-The uninstall step is intentional. Windows, Conda, and previous pip installs can
-leave an older `specify.exe` earlier on PATH, while development builds may still
-report the same `.dev0` version string. Use `specify --help` to verify the
-expected command surface and `specify check` to diagnose the active setup.
-
 ### Initialize a New Project
 
-The easiest way to get started is to initialize a new project from Spec Kit Plus. Use
-`--refresh` when you want uv to re-check the Git source instead of reusing a
-cached build:
+Pin a release tag to reproduce the same CLI install. These examples use
+[`v0.8.8`](https://github.com/chenziyang110/spec-kit-plus-releases/releases/tag/v0.8.8),
+which adds shared skills by default for compatible integrations.
 
-```bash
-# Run from the current development head
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <PROJECT_NAME>
-
-# Or pin a specific tag or branch when you need reproducibility
-uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git@vX.Y.Z specify init <PROJECT_NAME>
+```powershell
+uvx --from "git+https://github.com/chenziyang110/spec-kit-plus.git@v0.8.8" specify init my-project --ai agy --workflow-profile classic --script ps
 ```
 
-Or initialize in the current directory:
+On Linux or macOS, choose `--script sh`. Replace `my-project` with `.` or use
+`specify init --here` to initialize the current directory. For a project that
+already has Spec Kit Plus, follow the [upgrade and repair guide](upgrade.md).
 
 ```bash
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init .
-# or use the --here flag
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init --here
+uvx --from "git+https://github.com/chenziyang110/spec-kit-plus.git@v0.8.8" specify init my-project --ai codex --workflow-profile classic --script sh
 ```
+
+### Install or Upgrade Spec Kit Plus
+
+To keep a `specify` executable on PATH, install the tagged CLI as a uv tool.
+
+```bash
+uv tool install specify-cli --from "git+https://github.com/chenziyang110/spec-kit-plus.git@v0.8.8"
+specify version
+```
+
+Use the [upgrade guide](upgrade.md#1-upgrade-the-cli) if you already have an
+installation. For development testing, omit the tag and add `--refresh` to the
+`uvx` command. That follows the default branch, where several commits may share
+a `.dev0` version string.
 
 ### Specify AI Agent
 
-You can proactively specify your AI agent during initialization:
+Pass the integration key to `--ai`. For Google Antigravity, use `--ai agy`.
+For the complete list, see `specify init --help`.
 
-```bash
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai claude
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai gemini
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai copilot
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai codebuddy
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai mimo
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai pi
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai dsh
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai droid
-```
+| Agent | Integration key | Default workflow location on a new install |
+| --- | --- | --- |
+| Google Antigravity | `agy` | `.agents/skills/` |
+| Codex | `codex` | `.agents/skills/` |
+| DeepSeek Harness | `dsh` | `.agents/skills/` |
+| Factory Droid | `droid` | `.agents/skills/` |
+| Claude Code | `claude` | `.claude/skills/` |
+| Gemini CLI | `gemini` | `.gemini/commands/` |
 
 ### Choose a Skills Layout
 
@@ -73,10 +66,12 @@ selected integration's configured directory on a new install. For example,
 this preserves the historical `.codex/skills/` layout for Codex. Antigravity
 uses `.agents/skills/` in either layout.
 
-The selected integration still controls workflow invocation and tool instructions.
-Classic and Advanced catalogs for that integration use the same skills location.
-You can keep independently managed generic skills in `.agents/skills/` under
-their own names. To move an existing Plus catalog, see
+The selected integration controls invocation syntax and generated instructions.
+Classic (`sp-*`) and Advanced (`spx-*`) catalogs for that integration use the
+same location. Give independently managed skills their own names under
+`.agents/skills/`. To see the active integration and its skills path, run
+`specify integration list` from the project root. To move an existing Plus
+catalog, see
 [Migrate an Installed Skill Layout](upgrade.md#migrate-an-installed-skill-layout).
 
 ### Specify Script Type (Shell vs PowerShell)
@@ -92,8 +87,8 @@ Auto behavior:
 Force a specific script type:
 
 ```bash
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --script sh
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --script ps
+specify init my-project --script sh
+specify init my-project --script ps
 ```
 
 ### Ignore Agent Tools Check
@@ -101,7 +96,7 @@ uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git spec
 If you prefer to get the templates without checking for the right tools:
 
 ```bash
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai claude --ignore-agent-tools
+specify init my-project --ai claude --ignore-agent-tools
 ```
 
 ### Install Unified Specify Runtime
@@ -130,11 +125,11 @@ it does not open a login prompt or save credentials. API credentials are never
 sent to mirrors or forwarded to redirected asset hosts. The API download checks
 the release asset's size and SHA-256 digest when GitHub provides one.
 
-Older CLI builds download from the private source repository and may return
+Older CLI builds download runtime assets from the source repository and may return
 **404** despite a successful Git clone. Upgrade the CLI to use the public
 distribution repository. Authenticated fallbacks remain available for restricted
-environments, but are not needed for public runtime downloads. Installing the
-Python CLI from a private Git source still requires source-repository access.
+environments. Installing the Python CLI from Git requires source-repository
+access.
 Do not paste tokens into command arguments or download URLs.
 
 Custom sources remain opt-in through `SPECIFY_RUNTIME_DOWNLOAD_MIRRORS` (a
@@ -211,6 +206,19 @@ The same binary owns canonical Agent artifact access. Use `specify-runtime artif
 
 ## Verification
 
+From the initialized project root, check the selected integration and the
+version of the binary that its workflows actually use. `specify version`
+identifies the separately installed Python CLI.
+
+```powershell
+uvx --from "git+https://github.com/chenziyang110/spec-kit-plus.git@v0.8.8" specify integration list
+.\.specify\bin\specify-runtime.exe version --format json
+```
+
+If you installed the intended CLI on PATH, you can run `specify integration list`
+directly.
+On Linux or macOS, use `./.specify/bin/specify-runtime version --format json`.
+
 After initialization, you should see generated workflow commands or skills
 available in your AI agent. Canonical workflow names such as `specify`, `plan`,
 and `tasks` are integration-neutral, but the text you type depends on the
@@ -222,7 +230,7 @@ Invocation syntax depends on the integration:
 | --- | --- | --- | --- | --- | --- |
 | Codex skills | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | `$sp-test-design` | `$sp-tasks` |
 | Kimi Code skills | `/skill:sp-specify` | `/skill:sp-prd-scan -> /skill:sp-prd-build` | `/skill:sp-plan` | `/skill:sp-test-design` | `/skill:sp-tasks` |
-| Claude skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | `/sp-test-design` | `/sp-tasks` |
+| Antigravity, Claude Code, DeepSeek Harness, and Factory Droid skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | `/sp-test-design` | `/sp-tasks` |
 | MiMo Code commands | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | `/sp.test-design` | `/sp.tasks` |
 | Slash-dot command integrations | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | `/sp.test-design` | `/sp.tasks` |
 

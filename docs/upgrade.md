@@ -1,14 +1,10 @@
 # Upgrade and Repair Guide
 
-This guide covers three separate operations:
-
-1. upgrade the `specify` CLI;
-2. repair runtime-managed assets in an initialized project;
-3. intentionally regenerate or add workflow profiles.
-
-Keep them separate. A CLI upgrade does not automatically rewrite a generated
-project, and ordinary project repair should not overwrite user-edited workflow
-content.
+Upgrade the `specify` CLI first, then choose what the project needs. Run
+`specify integration repair` to refresh managed assets and check the runtime
+binding, `specify integration migrate-skills` to move an existing skill
+catalog, or `specify init` to add or regenerate a workflow profile. Upgrading
+the CLI leaves project files in place until you run a project command.
 
 ## Before You Start
 
@@ -16,6 +12,7 @@ From the project root:
 
 ```bash
 git status --short
+specify integration list
 specify check
 ```
 
@@ -32,23 +29,22 @@ Do not use a broad regeneration command before reviewing those paths.
 
 ### Reproducible tagged release
 
-Use a tag from
-[Spec Kit Plus Releases](https://github.com/chenziyang110/spec-kit-plus/releases):
+Use the same release tag on each machine. This example uses `v0.8.8`.
 
 ```bash
-uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git@vX.Y.Z
+uv tool install specify-cli --force --from "git+https://github.com/chenziyang110/spec-kit-plus.git@v0.8.8"
+specify version
 ```
 
-Tagged releases publish matching prebuilt `specify-runtime` binaries for
-Windows, Linux, and macOS.
+Matching prebuilt `specify-runtime` binaries for Windows, Linux, and macOS
+are published separately. [Runtime releases](https://github.com/chenziyang110/spec-kit-plus-releases/releases)
 
 ### Current development head
 
-Use the untagged repository only when you intentionally want the latest
-development state:
+Use `@main` when you want to try the current development branch.
 
 ```bash
-uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git
+uv tool install specify-cli --force --from "git+https://github.com/chenziyang110/spec-kit-plus.git@main"
 ```
 
 Development commits can share the same `.dev0` package version. Verify the
@@ -66,13 +62,9 @@ On Windows, stale pip, Conda, or uv entrypoints may shadow the intended CLI:
 Get-Command specify -All
 ```
 
-If necessary, remove the obsolete installation before reinstalling:
-
-```powershell
-python -m pip uninstall -y specify-cli
-uv tool uninstall specify-cli
-uv tool install specify-cli --from git+https://github.com/chenziyang110/spec-kit-plus.git@vX.Y.Z
-```
+If the first result points to an obsolete pip or Conda installation, remove
+that copy from the environment that owns it or fix PATH order. A pinned `uvx`
+invocation can also run the intended CLI directly.
 
 ## 2. Repair an Initialized Project
 
@@ -96,8 +88,9 @@ git status --short
 git diff -- .specify
 ```
 
-Also inspect the selected agent directory, such as `.codex/`, `.claude/`,
-`.gemini/`, or the directory recorded in `.specify/config.json`.
+Run `specify integration list` to find the active integration and the skills
+path for a skills-based integration. The active integration and its recorded
+profiles are in `.specify/integration.json`.
 
 ### Project launcher and runtime binding
 
@@ -107,14 +100,23 @@ Current generated projects record trusted launchers in `.specify/config.json`:
 - `runtime_launcher` binds every agent-facing workflow helper to the relative
   project entrypoint `.specify/bin/specify-runtime` (`.exe` on Windows).
 
-Generated helpers do not fall back to user-scoped environment variables or
-PATH. Run `specify-runtime doctor --format json`; when it returns
-`bootstrap_required`, a human should repair from a trusted external CLI
-installation:
+Run the project-local `specify-runtime` executable with `doctor --format json`
+to diagnose its binding. If it reports `bootstrap_required` or the executable
+is missing, repair from the project root with a trusted external CLI.
 
 ```bash
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify integration repair
+uvx --from "git+https://github.com/chenziyang110/spec-kit-plus.git@v0.8.8" specify integration repair
 ```
+
+Use the project-local executable to verify the runtime version after repair.
+
+```powershell
+.\.specify\bin\specify-runtime.exe version --format json
+```
+
+On Linux or macOS, run `./.specify/bin/specify-runtime version --format json`.
+`specify version` reports the Python CLI version. Check the runtime separately
+when a workflow needs a particular capability.
 
 Do not edit managed hook command strings by hand unless the diagnostic
 explicitly says the file is user-owned.
@@ -176,9 +178,12 @@ reconstruct:
 Command shape:
 
 ```bash
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git \
+uvx --from "git+https://github.com/chenziyang110/spec-kit-plus.git@v0.8.8" \
   specify init --here --force --ai <your-agent> --workflow-profile <classic|advanced>
 ```
+
+Use `agy` as the agent key for Antigravity. For the full key list, run
+`specify init --help`.
 
 Review local changes first. This operation is broader than
 `specify integration repair` and may refresh templates, scripts, context files,
@@ -198,21 +203,32 @@ do not remove them as part of an upgrade.
 
 ### Migrate an Installed Skill Layout
 
-Existing projects keep their installed layout when they upgrade the CLI,
-regenerate a profile, or repair generated assets. To move a managed catalog to
-`.agents/skills/`, run `specify integration migrate-skills` from the project
-root with a supported integration installed. To move to the integration's
-configured native directory, use
-`specify integration migrate-skills --skills-layout native`.
+`v0.8.8` defaults to `.agents/skills/` on new installs for integrations that
+support it. Existing projects keep their recorded layout during upgrade and
+repair. From the project root, check the active integration. If it supports
+shared skills, migrate its managed catalog to the shared directory.
 
-The migration applies to the installed Plus catalog, including its profiles
-and supporting files. Keep user-managed skills and local edits. Review any
-reported conflicts before retrying and use the selected integration to invoke
-the migrated workflows.
+```bash
+specify integration list
+specify integration migrate-skills
+specify integration list
+```
 
-If an extension or preset has registered workflow skills, migration stops
-until you remove that extension or preset. Reinstall it after migration so
-its skills register in the new location.
+For an integration with a separate native skills directory, pass
+`--skills-layout native` to move the managed catalog there. Antigravity uses
+`.agents/skills/` in either layout. If the project has several recorded
+integrations, migration acts on the one marked current. Review local changes
+before running `specify integration switch <key>`. By default, switching
+removes unchanged files owned by the outgoing integration, preserves modified
+files, and makes the selected integration active. Review the resulting diff
+before migrating.
+
+The command moves the profiles and supporting files tracked by the active
+integration. It leaves independently managed skills in place and stops if a
+tracked file has local edits or the destination conflicts with another file.
+Review the reported paths before retrying. If migration reports an extension or
+preset with registered workflow skills, remove that add-on, migrate, then
+reinstall it so its skills register in the new location.
 
 ## Project Cognition Compatibility
 
@@ -249,8 +265,9 @@ Recovery:
 | Symptom | Current action |
 | --- | --- |
 | Expected CLI command is missing | Check `specify --help`, then inspect duplicate executables with `Get-Command specify -All` on Windows. |
+| `Unknown agent 'antigravity'` | Use the `agy` key. Run `specify init --help` for the full list. |
 | Generated scripts or hooks are stale | Run `specify check`, `specify integration repair`, then `specify check` again. |
-| Agent does not show refreshed workflows | Confirm the integration/profile in `.specify/config.json`, restart the agent/IDE, and inspect the generated agent directory. |
+| Agent does not show refreshed workflows | Check the active integration and skills path with `specify integration list`, inspect the recorded profiles in `.specify/integration.json`, then reopen the project in the agent. |
 | Advanced skills are absent | Confirm the integration is skills-based and rerun init with `--workflow-profile advanced`. |
 | Runtime helper cannot start | Run project-local `specify-runtime doctor --format json`; if it reports `bootstrap_required`, use the trusted human bootstrap/upgrade flow to reprovision `.specify/bin/specify-runtime`. |
 | Project Cognition reports `unsupported_legacy_runtime` | Use `cognition archive-incompatible-store --inspect`, execute its guarded `archive_argv`, and then use the empty-project or brownfield recovery above. |
@@ -275,12 +292,11 @@ After an upgrade or repair:
 
 - `specify version` and `specify --help` describe the intended CLI;
 - `specify check` has no unresolved launcher or compatibility errors;
-- `.specify/config.json` records the intended integration and workflow profile;
-- project-pinned `specify_launcher` and `runtime_launcher` resolve;
+- `.specify/integration.json` records the intended integration and workflow profiles;
+- the `specify_launcher` and project-pinned `runtime_launcher` in `.specify/config.json` resolve;
 - the agent displays the expected native `sp-*` and/or `spx-*` surfaces;
 - existing `.specify/features/**` artifacts and user changes remain intact;
 - `git diff` contains only reviewed changes.
 
-For release-specific changes and binary assets, use
-[Spec Kit Plus Releases](https://github.com/chenziyang110/spec-kit-plus/releases)
-as the authoritative history.
+For versioned binaries and checksums, see the
+[public runtime releases](https://github.com/chenziyang110/spec-kit-plus-releases/releases).

@@ -16,25 +16,27 @@ This guide will help you get started with Spec-Driven Development using Spec Kit
 
 ### Step 1: Install Specify
 
-**In your terminal**, run the `specify` CLI command to initialize your project:
+Run `specify init` from your terminal. These examples pin the `v0.8.8` release.
 
 ```bash
-# Create a new project directory
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <PROJECT_NAME>
+# Create a new project for Codex
+uvx --from "git+https://github.com/chenziyang110/spec-kit-plus.git@v0.8.8" specify init my-project --ai codex --workflow-profile classic
 
-# OR initialize in the current directory
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init .
+# Initialize the current directory for Antigravity
+uvx --from "git+https://github.com/chenziyang110/spec-kit-plus.git@v0.8.8" specify init . --ai agy --workflow-profile classic
 ```
 
-Pick script type explicitly (optional):
+Use `agy` as the CLI key for Antigravity. The CLI prints the installed skill
+directory and invocation syntax after setup. New Codex and Antigravity
+installations use `.agents/skills/`. For an existing installation, see
+[upgrading and migrating skills](upgrade.md#migrate-an-installed-skill-layout).
 
-```bash
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <PROJECT_NAME> --script ps  # Force PowerShell
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <PROJECT_NAME> --script sh  # Force POSIX shell
-```
+Append `--script ps` for PowerShell or `--script sh` for POSIX shell scripts.
+See the [installation guide](installation.md) for persistent installs and
+development builds.
 
 When `specify init` comes from a trusted source-bound launcher such as the
-`uvx --refresh --from ... specify` form above, generated projects can persist
+`uvx --from ... specify` form above, generated projects can persist
 that launcher in `.specify/config.json` as `specify_launcher`. Runtime helper
 instructions inside generated workflows should follow the project launcher when
 it exists instead of blindly trusting whichever `specify` happens to be first on
@@ -58,7 +60,7 @@ Invocation syntax depends on the integration:
 | --- | --- | --- | --- | --- | --- | --- |
 | Codex skills | `$sp-constitution` | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | `$sp-test-design` | `$sp-tasks` |
 | Kimi Code skills | `/skill:sp-constitution` | `/skill:sp-specify` | `/skill:sp-prd-scan -> /skill:sp-prd-build` | `/skill:sp-plan` | `/skill:sp-test-design` | `/skill:sp-tasks` |
-| Claude skills | `/sp-constitution` | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | `/sp-test-design` | `/sp-tasks` |
+| Antigravity and Claude skills | `/sp-constitution` | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | `/sp-test-design` | `/sp-tasks` |
 | MiMo Code commands | `/sp.constitution` | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | `/sp.test-design` | `/sp.tasks` |
 | Slash-dot command integrations | `/sp.constitution` | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | `/sp.test-design` | `/sp.tasks` |
 
@@ -96,7 +98,7 @@ If the repository needs a different built-in baseline, pick a constitution
 profile during init:
 
 ```bash
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <PROJECT_NAME> --constitution-profile library
+uvx --from "git+https://github.com/chenziyang110/spec-kit-plus.git@v0.8.8" specify init my-library --ai codex --workflow-profile classic --constitution-profile library
 ```
 
 Built-in profiles:

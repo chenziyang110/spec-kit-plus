@@ -5,6 +5,8 @@
 # Getting started section
 - name: Getting Started
   items:
+    - name: Start Here
+      href: start-here.md
     - name: Installation
       href: installation.md
     - name: Quick Start

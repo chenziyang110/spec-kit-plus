@@ -2,28 +2,29 @@
 
 ## Install a known version
 
-Use Python 3.11 or newer, uv, and your selected Agent CLI or IDE. Git installs
-from this private repository require your existing repository access. Do not
-paste access tokens into commands or documents.
+Use Python 3.11 or newer, uv, and your selected agent CLI or IDE. If Git asks
+you to sign in, use your existing Git credentials.
 
-Choose a published source tag using the [installation guide](installation.md)
-and [release list](https://github.com/chenziyang110/spec-kit-plus-releases/releases).
-The following is a template: replace `vX.Y.Z` with that selected tag.
+This example pins the `v0.8.8` source tag. Find available versions on the
+[release list](https://github.com/chenziyang110/spec-kit-plus-releases/releases)
+and other setup options in the [installation guide](installation.md).
 
 ```bash
-uv tool install specify-cli --from git+https://github.com/chenziyang110/spec-kit-plus.git@vX.Y.Z
+uv tool install specify-cli --from "git+https://github.com/chenziyang110/spec-kit-plus.git@v0.8.8"
 specify init my-project --ai codex --workflow-profile classic
 cd my-project
 specify check
 ```
 
+For Antigravity, use `--ai agy` and invoke Classic skills with `/sp-*` in the
+IDE. New Codex and Antigravity installs put generated skills in `.agents/skills/`.
+
 Classic is the explicit, broadly compatible profile. Advanced is an explicit
 opt-in for skills-based integrations. They share runtime contracts but retain
 independent prompts; Advanced is not a lower-verification mode.
 
-For an existing project, review uncommitted changes before using
-`specify init --here --force --ai codex`. Use the [upgrade guide](upgrade.md)
-for managed asset repair and user-modified file preservation.
+For an already initialized project, follow the [upgrade guide](upgrade.md) to
+repair managed assets or migrate the installed skill layout.
 
 ## Pick one outcome
 

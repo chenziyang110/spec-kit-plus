@@ -27,57 +27,54 @@ Spec Kit Plus is an independently developed Spec-Driven Development toolkit for 
 
 ## Quick start
 
-### Recommended setup
+Install [Python 3.11+](https://www.python.org/downloads/),
+[uv](https://docs.astral.sh/uv/getting-started/installation/), and your preferred
+coding agent. [Git](https://git-scm.com/downloads) is recommended.
 
-- [Python 3.11 or newer](https://www.python.org/downloads/)
-- [uv](https://docs.astral.sh/uv/getting-started/installation/)
-- [Git](https://git-scm.com/downloads) (recommended; `init --no-git` is available)
-- the CLI or IDE for your chosen AI coding agent
+### 1. Choose your agent
 
-### 1. Install the CLI
+Use the exact key in the `--ai` column. The last column is what you type inside
+the agent after initialization.
 
-```bash
-uv tool install specify-cli --from git+https://github.com/chenziyang110/spec-kit-plus.git
-```
-
-An untagged Git install follows the current development head. For a reproducible
-CLI/runtime pair, append a tag from
-[Releases](https://github.com/chenziyang110/spec-kit-plus-releases/releases) to the Git
-URL, for example `@vX.Y.Z`.
+| Agent | `--ai` | Default location for a new project | First Classic workflow |
+| --- | --- | --- | --- |
+| Codex | `codex` | `.agents/skills/` | `$sp-specify` |
+| Antigravity | **`agy`** | `.agents/skills/` | `/sp-specify` |
+| Cursor | `cursor-agent` | `.agents/skills/` | `/sp-specify` |
+| DeepSeek Harness | `dsh` | `.agents/skills/` | `/sp-specify` |
+| Factory Droid | `droid` | `.agents/skills/` | `/sp-specify` |
+| Kimi Code | `kimi` | `.agents/skills/` | `/skill:sp-specify` |
+| Claude Code | `claude` | `.claude/skills/` | `/sp-specify` |
+| Gemini CLI | `gemini` | `.gemini/commands/` | `/sp.specify` |
 
 ### 2. Initialize a project
 
 ```bash
-specify init my-project --ai codex --workflow-profile classic
-cd my-project
-specify check
+uvx --from "git+https://github.com/chenziyang110/spec-kit-plus.git@v0.8.8" specify init my-project --ai codex --workflow-profile classic
 ```
 
-`specify init` creates the shared `.specify/` runtime and the native workflow catalog for the selected integration. `classic` is the non-interactive default; choose `advanced` when the integration supports skills and you want the independent `spx-*` catalog.
+This runs the tagged CLI once and installs the selected workflow catalog.
+When the matching runtime is available, init downloads and pins it under
+`.specify/bin/`. The source tag keeps the CLI version reproducible. Omitting
+it follows the development branch. For a persistent install, see the
+[Installation Guide](docs/installation.md#install-or-upgrade-spec-kit-plus).
 
-New skill installations use `--skills-layout auto`. Integrations that discover
-project skills in `.agents/skills` use that directory. Other integrations use
-their configured native location. Use `--skills-layout native` at installation
-to select the integration's configured location explicitly.
+If you are adding Spec Kit Plus to an existing repository for the first time,
+review your local changes. For Antigravity, run this from the project root.
 
-To scaffold once without installing the CLI:
-
-```bash
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init my-project --ai codex --workflow-profile classic
+```powershell
+uvx --from "git+https://github.com/chenziyang110/spec-kit-plus.git@v0.8.8" specify init --here --ai agy --workflow-profile classic --script ps
 ```
 
-For an existing directory, run `specify init --here --force --ai <agent>` after reviewing local changes. Use `--ignore-agent-tools` when you only want the generated assets and do not want `init` to require the selected agent executable.
-
-Runtime downloads use the public
-[`spec-kit-plus-releases`](https://github.com/chenziyang110/spec-kit-plus-releases/releases)
-repository by default; the Python CLI source repository remains separate.
-GitHub CLI and Git/environment authentication remain fallback options, and
-community mirrors are opt-in. A development head ahead of the published runtime
-may still need a cached Go source build; see the [runtime installation guide](docs/installation.md#install-unified-specify-runtime).
+New skill installations use `--skills-layout auto`. Use
+`--skills-layout native` to select the integration's configured location.
+For a project already set up with Spec Kit Plus, see the
+[upgrade and migration guide](docs/upgrade.md#migrate-an-installed-skill-layout).
+See [Supported integrations](#supported-integrations) for the full list.
 
 ### 3. Start the workflow in your agent
 
-The following is Codex skill syntax and is entered inside Codex, not in the shell:
+Open the project in your agent. In Codex, enter these prompts in order.
 
 ```text
 $sp-specify Build a searchable knowledge base with role-based access and an audit trail.
@@ -88,7 +85,9 @@ $sp-review
 $sp-accept
 ```
 
-Other integrations use different punctuation. The `Start Here` panel printed by `specify init` shows the exact native commands for the selected agent.
+The `Start Here` panel printed by `specify init` lists the exact commands for
+your agent and profile. Use `--workflow-profile advanced` on a skills-based
+integration when you want the independent `spx-*` catalog.
 
 ## How it works
 
@@ -156,6 +155,9 @@ profile repair preserve them. They are not automatically committed or shared
 across machines. Both profiles use the same runtime and require explicit
 invocation. See [DO workflow and runtime contract](docs/sp-do.md) for the full
 lifecycle, evidence rules, recovery, and sharing boundary.
+
+For build scripts that read configuration outside the repository, see
+[protected Do inputs](docs/do-protected-inputs.md).
 
 ## Scenario-first E2E
 
@@ -237,10 +239,8 @@ Run `specify init --help` for the authoritative list shipped by the installed CL
 
 | Goal | Command or guide |
 | --- | --- |
-| Persistent Git install | `uv tool install specify-cli --from git+https://github.com/chenziyang110/spec-kit-plus.git` |
-| One-time execution | `uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify ...` |
-| Upgrade to the current repository head | `uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git` |
-| Pin a release | Append `@vX.Y.Z` from [Releases](https://github.com/chenziyang110/spec-kit-plus-releases/releases) to the Git URL |
+| Install or run a tagged release | [CLI installation](docs/installation.md#installation) |
+| Update the CLI and the project's pinned runtime | [Upgrade Guide](docs/upgrade.md) |
 | Repair runtime-managed generated assets | `specify integration repair` from the generated project root |
 | Move an existing managed skill catalog to a different layout | `specify integration migrate-skills` from the generated project root |
 | Diagnose tools and project compatibility | `specify check` |
@@ -365,27 +365,10 @@ Schema v5 adds revision-bound, expiring reconciliation to the auditable live fee
 
 ### Persistent install
 
-Install the CLI from this repository:
+The [Installation Guide](docs/installation.md#install-or-upgrade-spec-kit-plus) covers tagged
+installs. The [Upgrade Guide](docs/upgrade.md) covers existing installations and
+duplicate `specify.exe` entries on Windows.
 
-```bash
-uv tool install specify-cli --from git+https://github.com/chenziyang110/spec-kit-plus.git
-```
-
-Upgrade to the latest Spec Kit Plus version. If a machine previously installed
-`specify-cli` through `pip`, Conda, or another `uv tool` location, remove the old
-entry first so a stale `specify.exe` does not shadow the new one:
-
-```powershell
-python -m pip uninstall -y specify-cli
-uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git
-Get-Command specify -All
-specify --help
-```
-
-`specify version` reports the package version, but development installs can share
-the same `.dev0` version string across commits. Use `specify --help` to confirm
-the expected command surface, and use `Get-Command specify -All` on Windows to
-detect duplicate old entrypoints.
 Feature creation follows `sp-specify` plus the generated create-feature script
 at `.specify/scripts/bash/create-new-feature.sh` or
 `.specify/scripts/powershell/create-new-feature.ps1`; do not assume a separate
@@ -395,15 +378,8 @@ the script's explicit `--number` / `-Number` option.
 
 ### One-time use without installing
 
-```bash
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init my-project --ai codex
-```
-
-Initialize the current directory with the latest repository version, without relying on whatever `specify` is currently on your `PATH`:
-
-```bash
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init . --ai codex
-```
+Use the tagged `uvx` commands in [Quick start](#quick-start) to run Specify
+directly, regardless of which `specify` executable is on your `PATH`.
 
 ### Local editable install for development
 
@@ -1867,44 +1843,8 @@ specify init --help
 
 ## Supported Agents
 
-Commonly used integrations in Spec Kit Plus include:
-
-- `codex`
-- `claude`
-- `gemini`
-- `copilot`
-- `cursor-agent`
-- `qwen`
-- `opencode`
-- `tabnine`
-- `trae`
-- `windsurf`
-- `junie`
-- `kilocode`
-- `auggie`
-- `roo`
-- `codebuddy`
-- `amp`
-- `shai`
-- `kiro-cli`
-- `agy`
-- `bob`
-- `qodercli`
-- `vibe`
-- `zcode`
-- `grok`
-- `kimi`
-- `mimo`
-- `iflow`
-- `pi`
-- `forge`
-- `generic`
-
-The exact up-to-date list is available from the CLI:
-
-```bash
-specify init --help
-```
+See [Supported integrations](#supported-integrations) for the registry
+summary, or run `specify init --help` for your installed CLI.
 
 ## Repository Layout
 
