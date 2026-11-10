@@ -212,7 +212,7 @@ def test_init_generated_codex_skill_includes_invocation_note_and_projected_hando
                 "target = Path(sys.argv[1])\n"
                 "result = CliRunner().invoke(app, ['init', str(target), '--ai', 'codex', '--no-git', '--ignore-agent-tools', '--script', 'sh'])\n"
                 "assert result.exit_code == 0, result.output\n"
-                "print((target / '.codex' / 'skills' / 'sp-specify' / 'SKILL.md').read_text(encoding='utf-8'))\n"
+                "print((target / '.agents' / 'skills' / 'sp-specify' / 'SKILL.md').read_text(encoding='utf-8'))\n"
             ),
             str(target),
         ],
@@ -223,7 +223,7 @@ def test_init_generated_codex_skill_includes_invocation_note_and_projected_hando
         text=True,
     )
     content = read_skill_with_references(
-        target / ".codex" / "skills" / "sp-specify" / "SKILL.md"
+        target / ".agents" / "skills" / "sp-specify" / "SKILL.md"
     )
 
     assert "## Invocation Syntax" in content
@@ -282,7 +282,7 @@ def test_apply_skill_invocation_conventions_supports_agy_surface():
     agy = CommandRegistrar.apply_skill_invocation_conventions("agy", body)
 
     assert "## Invocation Syntax" in agy
-    assert "- Run $sp-plan next." in agy
+    assert "- Run /sp-plan next." in agy
 
 
 def test_apply_skill_invocation_conventions_supports_zcode_surface():
@@ -903,7 +903,7 @@ def test_generated_codex_sp_specify_skill_exposes_create_feature_command_and_sto
                 "target = Path(sys.argv[1])\n"
                 "result = CliRunner().invoke(app, ['init', str(target), '--ai', 'codex', '--no-git', '--ignore-agent-tools', '--script', 'sh'])\n"
                 "assert result.exit_code == 0, result.output\n"
-                "print((target / '.codex' / 'skills' / 'sp-specify' / 'SKILL.md').read_text(encoding='utf-8'))\n"
+                "print((target / '.agents' / 'skills' / 'sp-specify' / 'SKILL.md').read_text(encoding='utf-8'))\n"
             ),
             str(target),
         ],
@@ -914,7 +914,7 @@ def test_generated_codex_sp_specify_skill_exposes_create_feature_command_and_sto
         text=True,
     )
     content = read_skill_with_references(
-        target / ".codex" / "skills" / "sp-specify" / "SKILL.md"
+        target / ".agents" / "skills" / "sp-specify" / "SKILL.md"
     ).lower()
 
     assert ".specify/scripts/bash/create-new-feature.sh" in content
@@ -951,7 +951,7 @@ def test_generated_codex_cognition_skill_exposes_create_feature_helper_paths(
                 "assert result.exit_code == 0, result.output\n"
                 "name = 'spec-kit-project-cognition-gate'\n"
                 "print(f'## {name}')\n"
-                "print((target / '.codex' / 'skills' / name / 'SKILL.md').read_text(encoding='utf-8'))\n"
+                "print((target / '.agents' / 'skills' / name / 'SKILL.md').read_text(encoding='utf-8'))\n"
             ),
             str(target),
         ],

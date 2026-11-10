@@ -2832,6 +2832,7 @@ class SkillsIntegration(IntegrationBase):
     """
 
     WORKFLOW_PROFILES = frozenset({"classic", "advanced"})
+    SHARED_SKILLS_DIR = Path(".agents/skills")
     RETIRED_PASSIVE_SKILLS = frozenset(
         {"spec-kit-ui-design", "spec-kit-workflow-routing"}
     )
@@ -2839,8 +2840,8 @@ class SkillsIntegration(IntegrationBase):
         {"sp-prd", "sp-research", "spx-prd", "spx-research"}
     )
 
-    def skills_dest(self, project_root: Path) -> Path:
-        """Return the absolute path to the skills output directory.
+    def native_skills_dest(self, project_root: Path) -> Path:
+        """Return the integration's configured native (or historical) path.
 
         Derived from ``config["folder"]`` and the configured
         ``commands_subdir`` (defaults to ``"skills"``).
@@ -2856,6 +2857,110 @@ class SkillsIntegration(IntegrationBase):
             )
         subdir = self.config.get("commands_subdir", "skills")
         return project_root / folder / subdir
+
+    @property
+    def reads_shared_project_skills(self) -> bool:
+        return bool((self.config or {}).get("shared_project_skills"))
+
+    def installed_skill_layout(self, manifest: IntegrationManifest) -> str | None:
+        """Resolve older installs by owned paths, never by directory existence."""
+        native = self.native_skills_dest(manifest.project_root)
+        shared = manifest.project_root / self.SHARED_SKILLS_DIR
+        native_prefix = native.relative_to(manifest.project_root).as_posix() + "/"
+        shared_prefix = self.SHARED_SKILLS_DIR.as_posix() + "/"
+        paths = manifest.files
+        has_shared = any(path.startswith(shared_prefix) for path in paths)
+        if native == shared:
+            return "shared" if has_shared or manifest.skill_layout else None
+        has_native = any(path.startswith(native_prefix) for path in paths)
+        if has_shared and has_native:
+            raise ValueError("The integration owns skills in both layouts; repair the installation before changing it.")
+        recorded = "shared" if has_shared else "native" if has_native else None
+        if recorded and manifest.skill_layout and recorded != manifest.skill_layout:
+            raise ValueError("The integration's skill layout does not match its owned files.")
+        return recorded or manifest.skill_layout
+
+    def skills_dest(
+        self, project_root: Path, manifest: IntegrationManifest | None = None
+    ) -> Path:
+        """Return the persisted location, with the native path for unmanaged projects."""
+        if manifest is None and self.key:
+            from .manifest import IntegrationManifest
+
+            try:
+                manifest = IntegrationManifest.load(self.key, project_root)
+            except FileNotFoundError:
+                pass
+        if manifest is not None and self.installed_skill_layout(manifest) == "shared":
+            return project_root / self.SHARED_SKILLS_DIR
+        native = self.native_skills_dest(project_root)
+        if manifest is None and self.key == "codex" and not native.exists():
+            shared = project_root / self.SHARED_SKILLS_DIR
+            entry = shared / "sp-plan" / "SKILL.md"
+            try:
+                safe_local_state_path(entry, root=project_root)
+                header = self._parse_skill_frontmatter(entry.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return native
+            metadata = header.get("metadata")
+            if isinstance(metadata, dict) and metadata.get("source") == "templates/commands/plan.md":
+                return shared
+        return native
+
+    def prepare_skill_install(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        parsed_options: dict[str, Any] | None,
+        *,
+        replacing_manifest: IntegrationManifest | None = None,
+    ) -> Path:
+        """Choose the layout and reserve every generated skill namespace."""
+        from .skill_layout import preflight_skill_install
+
+        requested = (parsed_options or {}).get("skills_layout")
+        installed = self.installed_skill_layout(manifest)
+        native = self.native_skills_dest(project_root)
+        shared = project_root / self.SHARED_SKILLS_DIR
+        layout = installed or (
+            "shared"
+            if native == shared or (requested == "auto" and self.reads_shared_project_skills)
+            else "native"
+        )
+        if requested == "native" and installed == "shared" and native != shared:
+            raise ValueError("Run specify integration migrate-skills --skills-layout native first.")
+        skills_dir = shared if layout == "shared" else native
+
+        # Keep historical behavior for direct native-only adapters. Apply the
+        # ownership check whenever the same adapter can write to shared storage.
+        if self.reads_shared_project_skills or layout == "shared":
+            profile = self.workflow_profile(parsed_options)
+            names = {
+                "sp-teams" if template.stem == "team" else f"sp-{template.stem.replace('.', '-')}"
+                for template in self.list_command_templates()
+                if profile == "classic" or template.stem in self.ADVANCED_CLASSIC_COMPANION_COMMANDS
+            }
+            if profile == "classic":
+                names.update(path.name for path in self.list_passive_skill_templates())
+            else:
+                names.update(path.name for path in self.list_advanced_skill_templates())
+                names.add("references")
+            if (self.config or {}).get("flat_project_skills"):
+                names.update(f"{name}.md" for name in tuple(names) if name != "references")
+            preflight_skill_install(
+                project_root, manifest, skills_dir, names,
+                replacing_manifest=replacing_manifest,
+            )
+            # Some loaders prefer the legacy directory, while others show both
+            # same-named entries. Do not install a shadowed workflow.
+            if self.reads_shared_project_skills and native != shared:
+                alternate = native if skills_dir == shared else shared
+                preflight_skill_install(
+                    project_root, manifest, alternate, names,
+                    replacing_manifest=replacing_manifest,
+                )
+        manifest.skill_layout = layout
+        return skills_dir
 
     def shared_passive_skills_dir(self) -> Path | None:
         """Return path to the shared passive skill template directory."""
@@ -2976,7 +3081,7 @@ class SkillsIntegration(IntegrationBase):
 
     def render_advanced_invocations(self, content: str) -> str:
         """Project canonical ``$spx-*`` handoffs to this skill integration."""
-        if self.key in {"codex", "agy", "trae", "zcode"}:
+        if self.key in {"codex", "trae", "zcode"}:
             return content
         if self.key == "kimi":
             replacement = r"/skill:spx-\1"
@@ -3314,7 +3419,7 @@ class SkillsIntegration(IntegrationBase):
     ) -> list[Path]:
         """Restore missing manifest-owned Classic entrypoints without rewriting edits."""
         project_root_resolved = project_root.resolve()
-        skills_dir = self.skills_dest(project_root_resolved)
+        skills_dir = self.skills_dest(project_root_resolved, manifest)
         arg_placeholder = (
             self.registrar_config.get("args", "$ARGUMENTS")
             if self.registrar_config
@@ -3371,7 +3476,7 @@ class SkillsIntegration(IntegrationBase):
         script_type: str,
     ) -> list[Path]:
         """Restore missing manifest-owned reference sidecars without overwriting edits."""
-        skills_dir = self.skills_dest(project_root)
+        skills_dir = self.skills_dest(project_root, manifest)
         arg_placeholder = (
             self.registrar_config.get("args", "$ARGUMENTS")
             if self.registrar_config
@@ -3444,7 +3549,7 @@ class SkillsIntegration(IntegrationBase):
     ) -> list[Path]:
         """Restore owned passive entrypoints without adding a bundle to Advanced."""
         project_root_resolved = project_root.resolve()
-        skills_dir = self.skills_dest(project_root_resolved)
+        skills_dir = self.skills_dest(project_root_resolved, manifest)
         arg_placeholder = (
             self.registrar_config.get("args", "$ARGUMENTS")
             if self.registrar_config
@@ -3535,7 +3640,7 @@ class SkillsIntegration(IntegrationBase):
             return []
 
         project_root_resolved = project_root.resolve()
-        skills_dir = self.skills_dest(project_root_resolved)
+        skills_dir = self.skills_dest(project_root_resolved, manifest)
         arg_placeholder = (
             self.registrar_config.get("args", "$ARGUMENTS")
             if self.registrar_config
@@ -3844,7 +3949,7 @@ class SkillsIntegration(IntegrationBase):
         arg_placeholder: str,
     ) -> list[Path]:
         """Install the advanced prompt profile without classic augmentation."""
-        skills_dir = self.skills_dest(project_root).resolve()
+        skills_dir = self.skills_dest(project_root, manifest).resolve()
         project_root_resolved = project_root.resolve()
         skills_prefix = skills_dir.relative_to(project_root_resolved).as_posix().rstrip("/")
         advanced_prefix = skills_prefix + "/spx-"
@@ -3981,6 +4086,20 @@ class SkillsIntegration(IntegrationBase):
         template.  Each SKILL.md has normalised frontmatter containing
         ``name``, ``description``, ``compatibility``, and ``metadata``.
         """
+        from .skill_layout import skill_layout_lock
+
+        if self.reads_shared_project_skills:
+            with skill_layout_lock(project_root):
+                return self._install_skill_profile(project_root, manifest, parsed_options, **opts)
+        return self._install_skill_profile(project_root, manifest, parsed_options, **opts)
+
+    def _install_skill_profile(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        parsed_options: dict[str, Any] | None,
+        **opts: Any,
+    ) -> list[Path]:
         profile = self.workflow_profile(parsed_options)
         templates = self.list_command_templates()
         passive_templates = self.list_passive_skill_templates()
@@ -4003,7 +4122,7 @@ class SkillsIntegration(IntegrationBase):
                 f"project_root ({project_root_resolved})"
             )
 
-        skills_dir = self.skills_dest(project_root).resolve()
+        skills_dir = self.prepare_skill_install(project_root, manifest, parsed_options).resolve()
         try:
             skills_dir.relative_to(project_root_resolved)
         except ValueError as exc:

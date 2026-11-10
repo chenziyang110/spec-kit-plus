@@ -14,5 +14,5 @@ def test_vibe_skills_init_installs_command_and_passive_skills(tmp_path):
     )
 
     assert result.exit_code == 0, f"init --ai vibe failed: {result.output}"
-    assert (target / ".vibe" / "skills" / "sp-plan" / "SKILL.md").exists()
-    assert (target / ".vibe" / "skills" / "dispatching-parallel-agents" / "SKILL.md").exists()
+    assert (target / ".agents" / "skills" / "sp-plan" / "SKILL.md").exists()
+    assert (target / ".agents" / "skills" / "dispatching-parallel-agents" / "SKILL.md").exists()

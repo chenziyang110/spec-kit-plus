@@ -781,6 +781,10 @@ class ExtensionManager:
             # Check if skill already exists before creating the directory
             skill_subdir = skills_dir / skill_name
             skill_file = skill_subdir / "SKILL.md"
+            if skills_dir == self.project_root / ".agents" / "skills" and not registrar.may_write_shared_skill(
+                self.project_root, skill_file,
+            ):
+                continue
             if skill_file.exists():
                 # Do not overwrite user-customized skills
                 continue
@@ -900,7 +904,7 @@ class ExtensionManager:
                         continue
                 except (OSError, UnicodeDecodeError, Exception):
                     continue
-                shutil.rmtree(skill_subdir)
+                self._remove_owned_skill_entry(skills_dir, skill_subdir, skill_md)
         else:
             # Fallback: scan all possible agent skills directories
             from . import AGENT_CONFIG, DEFAULT_SKILLS_DIR
@@ -954,7 +958,17 @@ class ExtensionManager:
                     except (OSError, UnicodeDecodeError, Exception):
                         # If we can't verify, skip to avoid accidental deletion
                         continue
-                    shutil.rmtree(skill_subdir)
+                    self._remove_owned_skill_entry(skills_candidate, skill_subdir, skill_md)
+
+    def _remove_owned_skill_entry(self, skills_dir: Path, directory: Path, entry: Path) -> None:
+        if skills_dir != self.project_root / ".agents" / "skills":
+            shutil.rmtree(directory)
+            return
+        entry.unlink()
+        try:
+            directory.rmdir()
+        except OSError:
+            pass
 
     def check_compatibility(
         self,
@@ -1159,7 +1173,7 @@ class ExtensionManager:
         # Unregister commands from all AI agents
         if registered_commands:
             registrar = CommandRegistrar()
-            registrar.unregister_commands(registered_commands, self.project_root)
+            registrar.unregister_commands(registered_commands, self.project_root, source_id=extension_id)
 
         # Unregister agent skills
         self._unregister_extension_skills(registered_skills, extension_id)
@@ -1365,10 +1379,12 @@ class CommandRegistrar:
     def unregister_commands(
         self,
         registered_commands: Dict[str, List[str]],
-        project_root: Path
+        project_root: Path,
+        *,
+        source_id: str | None = None,
     ) -> None:
         """Remove previously registered command files from agent directories."""
-        self._registrar.unregister_commands(registered_commands, project_root)
+        self._registrar.unregister_commands(registered_commands, project_root, source_id=source_id)
 
     def register_commands_for_claude(
         self,

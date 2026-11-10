@@ -1757,6 +1757,25 @@ class TestPresetSkills:
         )
         return skill_dir
 
+    def _create_registered_shared_extension_skill(self, project_dir):
+        from specify_cli.extensions import ExtensionRegistry
+        from specify_cli.integrations.manifest import IntegrationManifest
+
+        ownership = IntegrationManifest("codex", project_dir)
+        ownership.skill_layout = "shared"
+        ownership.save()
+        skills_dir = project_dir / ".agents" / "skills"
+        skill = self._create_skill(skills_dir, "sp-fakeext-cmd") / "SKILL.md"
+        skill.write_text(
+            "---\nname: sp-fakeext-cmd\nmetadata:\n  source: extension:fakeext\n---\n\n"
+            "Original extension skill\n",
+            encoding="utf-8",
+        )
+        ExtensionRegistry(project_dir / ".specify" / "extensions").add(
+            "fakeext", {"registered_skills": ["sp-fakeext-cmd"]},
+        )
+        return skills_dir
+
     def test_skill_overridden_on_preset_install(self, project_dir, temp_dir):
         """When --ai-skills was used, a preset command override should update the skill."""
         # Simulate --ai-skills having been used: write init-options + create skill
@@ -1919,8 +1938,7 @@ class TestPresetSkills:
     def test_extension_skill_override_matches_hyphenated_multisegment_name(self, project_dir, temp_dir):
         """Preset overrides for sp.<ext>.<cmd> should target sp-<ext>-<cmd> skills."""
         self._write_init_options(project_dir, ai="codex")
-        skills_dir = project_dir / ".agents" / "skills"
-        self._create_skill(skills_dir, "sp-fakeext-cmd", body="untouched")
+        skills_dir = self._create_registered_shared_extension_skill(project_dir)
         (project_dir / ".specify" / "extensions" / "fakeext").mkdir(parents=True, exist_ok=True)
 
         preset_dir = temp_dir / "ext-skill-override"
@@ -1967,8 +1985,8 @@ class TestPresetSkills:
     def test_extension_skill_restored_on_preset_remove(self, project_dir, temp_dir):
         """Preset removal should restore an extension-backed skill instead of deleting it."""
         self._write_init_options(project_dir, ai="codex")
-        skills_dir = project_dir / ".agents" / "skills"
-        self._create_skill(skills_dir, "sp-fakeext-cmd", body="original extension skill")
+        skills_dir = self._create_registered_shared_extension_skill(project_dir)
+        original = (skills_dir / "sp-fakeext-cmd" / "SKILL.md").read_bytes()
 
         extension_dir = project_dir / ".specify" / "extensions" / "fakeext"
         (extension_dir / "commands").mkdir(parents=True, exist_ok=True)
@@ -2040,12 +2058,7 @@ class TestPresetSkills:
         manager.remove("ext-skill-restore")
 
         assert skill_file.exists()
-        content = skill_file.read_text()
-        assert "preset:ext-skill-restore" not in content
-        assert "source: extension:fakeext" in content
-        assert "extension:fakeext" in content
-        assert '.specify/scripts/bash/setup-plan.sh --json "$ARGUMENTS"' in content
-        assert "# Fakeext Cmd Skill" in content
+        assert skill_file.read_bytes() == original
 
     def test_preset_remove_skips_skill_dir_without_skill_file(self, project_dir, temp_dir):
         """Preset removal should not delete arbitrary directories missing SKILL.md."""
@@ -2248,9 +2261,14 @@ class TestPresetSkills:
 
     def test_agy_skill_restored_on_preset_remove(self, project_dir, temp_dir):
         """Agy preset removal should restore native skills instead of deleting them."""
+        from specify_cli.integrations.manifest import IntegrationManifest
+
         self._write_init_options(project_dir, ai="agy", ai_skills=True)
         skills_dir = project_dir / ".agents" / "skills"
         self._create_skill(skills_dir, "sp-specify", body="before override")
+        ownership = IntegrationManifest("agy", project_dir)
+        ownership.record_existing(Path(".agents/skills/sp-specify/SKILL.md"))
+        ownership.save()
 
         core_command = project_dir / ".specify" / "templates" / "commands" / "specify.md"
         core_command.write_text(
@@ -2300,7 +2318,7 @@ class TestPresetSkills:
         assert manager.remove("agy-override") is True
         assert skill_file.exists()
         restored = skill_file.read_text()
-        assert "restored core body" in restored
+        assert "before override" in restored
         assert "name: sp-specify" in restored
 
     def test_cursor_preset_updates_skills_dir(self, project_dir, temp_dir):

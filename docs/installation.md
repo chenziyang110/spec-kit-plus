@@ -59,7 +59,25 @@ uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git spec
 uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai codebuddy
 uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai mimo
 uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai pi
+uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai dsh
+uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai droid
 ```
+
+### Choose a Skills Layout
+
+For a new skills-based installation, `--skills-layout auto` uses
+`.agents/skills/` when the selected integration supports it. Other integrations
+use their configured location. Pass `--skills-layout native` to `specify init`,
+`specify integration install`, or `specify integration switch` to use the
+selected integration's configured directory on a new install. For example,
+this preserves the historical `.codex/skills/` layout for Codex. Antigravity
+uses `.agents/skills/` in either layout.
+
+The selected integration still controls workflow invocation and tool instructions.
+Classic and Advanced catalogs for that integration use the same skills location.
+You can keep independently managed generic skills in `.agents/skills/` under
+their own names. To move an existing Plus catalog, see
+[Migrate an Installed Skill Layout](upgrade.md#migrate-an-installed-skill-layout).
 
 ### Specify Script Type (Shell vs PowerShell)
 

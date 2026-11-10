@@ -60,8 +60,11 @@ name nor a historical example proves an integration's current behavior.
   `{{args}}`; Forge uses `{{parameters}}`. `{SCRIPT}` and `__AGENT__` are renderer
   placeholders. Read the owning registrar instead of inferring syntax from the
   file extension.
-- Codex defaults to skills in `.codex/skills/`; it does not require `--ai-skills`.
-  Skills destinations and invocations differ by integration. Classic workflow
+- Set `config["shared_project_skills"]` only when the skills-based integration
+  supports native project discovery of `.agents/skills/`. Keep the configured
+  native destination for `--skills-layout native` and existing manifests.
+  A new Codex install defaults to `.agents/skills/` without `--ai-skills`.
+  Layout selection preserves the selected integration's renderer. Classic workflow
   skills use `sp-*`, Advanced uses `spx-*`, and Classic passive skills keep their
   template directory names. Preserve the three Advanced-installed Classic map
   companions and do not install the Classic passive bundle into Advanced.

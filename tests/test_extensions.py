@@ -1152,6 +1152,10 @@ $ARGUMENTS
 
         manifest = ExtensionManifest(extension_dir / "extension.yml")
         registrar = CommandRegistrar()
+        assert registrar.register_commands_for_all_agents(manifest, extension_dir, project_dir) == {}
+        (project_dir / ".specify" / "integration.json").write_text(
+            json.dumps({"integration": "agy"}), encoding="utf-8",
+        )
         registered = registrar.register_commands_for_all_agents(manifest, extension_dir, project_dir)
 
         assert "agy" in registered
@@ -2958,6 +2962,75 @@ class TestExtensionUpdateCLI:
 
         for cmd_file in command_files:
             assert cmd_file.exists(), f"Expected command file to be restored after rollback: {cmd_file}"
+
+    def test_failed_shared_update_restores_distinct_skills_and_keeps_native_custom_skill(
+        self, tmp_path, monkeypatch,
+    ):
+        from typer.testing import CliRunner
+        import yaml
+
+        from specify_cli import app
+        from specify_cli.integrations.manifest import IntegrationManifest
+
+        project = tmp_path / "project"
+        shared = project / ".agents" / "skills"
+        shared.mkdir(parents=True)
+        state = IntegrationManifest("dsh", project)
+        state.skill_layout = "shared"
+        state.save()
+        (project / ".specify" / "integration.json").write_text(
+            json.dumps({"integration": "dsh"}), encoding="utf-8",
+        )
+
+        def add_command(source, name):
+            manifest = source / "extension.yml"
+            data = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+            data["provides"]["commands"].append({
+                "name": f"sp.test-ext.{name}", "file": f"commands/{name}.md",
+                "description": f"Test command {name}",
+            })
+            manifest.write_text(yaml.safe_dump(data), encoding="utf-8")
+            (source / "commands" / f"{name}.md").write_text(
+                f"---\ndescription: {name}\n---\n\nBody for {name}.\n", encoding="utf-8",
+            )
+
+        manager = ExtensionManager(project)
+        v1 = self._create_extension_source(tmp_path, "1.0.0")
+        add_command(v1, "second")
+        manager.install_from_directory(v1, "0.1.0")
+        original_registration = manager.registry.get("test-ext")
+        original = {
+            shared / f"sp-test-ext-{name}" / "SKILL.md":
+                (shared / f"sp-test-ext-{name}" / "SKILL.md").read_bytes()
+            for name in ("hello", "second")
+        }
+
+        v2 = self._create_extension_source(tmp_path, "2.0.0")
+        add_command(v2, "new")
+        native_custom = project / ".dsh" / "skills" / "sp-test-ext-new" / "SKILL.md"
+        native_custom.parent.mkdir(parents=True)
+        native_custom.write_bytes(b"User-owned native skill\n")
+        zip_path = tmp_path / "update.zip"
+        self._create_catalog_zip(zip_path, "2.0.0")
+
+        def fail_after_install(installer, _zip_path, speckit_version):
+            installer.install_from_directory(v2, speckit_version)
+            raise RuntimeError("failure after new commands were registered")
+
+        monkeypatch.chdir(project)
+        monkeypatch.setattr(ExtensionCatalog, "get_extension_info", lambda *_: {
+            "id": "test-ext", "name": "Test Extension", "version": "2.0.0",
+            "_install_allowed": True,
+        })
+        monkeypatch.setattr(ExtensionCatalog, "download_extension", lambda *_: zip_path)
+        monkeypatch.setattr(ExtensionManager, "install_from_zip", fail_after_install)
+        result = CliRunner().invoke(app, ["extension", "update", "test-ext"], input="y\n")
+
+        assert result.exit_code == 1 and "Rollback successful" in result.output, result.output
+        assert ExtensionManager(project).registry.get("test-ext") == original_registration
+        assert {path: path.read_bytes() for path in original} == original
+        assert not (shared / "sp-test-ext-new" / "SKILL.md").exists()
+        assert native_custom.read_bytes() == b"User-owned native skill\n"
 
 
 class TestExtensionListCLI:

@@ -6622,21 +6622,29 @@ def load_init_options(project_path: Path) -> dict[str, Any]:
 
 
 def _get_skills_dir(project_path: Path, selected_ai: str) -> Path:
-    """Resolve the agent-specific skills directory.
+    """Resolve the installed skill location for preset and extension commands."""
+    from .integrations import get_integration
+    from .integrations.base import SkillsIntegration
 
-    Returns ``project_path / <agent_folder> / "skills"``, falling back
-    to ``project_path / ".agents/skills"`` for unknown agents.
-    """
+    integration = get_integration(selected_ai)
+    if isinstance(integration, SkillsIntegration):
+        return integration.skills_dest(project_path)
     agent_config = AGENT_CONFIG.get(selected_ai, {})
     agent_folder = agent_config.get("folder", "")
     if agent_folder:
-        preferred = project_path / agent_folder.rstrip("/") / "skills"
-        if selected_ai == "codex":
-            legacy = project_path / ".agents" / "skills"
-            if not preferred.exists() and legacy.exists():
-                return legacy
-        return preferred
+        return project_path / agent_folder.rstrip("/") / "skills"
     return project_path / ".agents" / "skills"
+
+
+def _validate_skills_layout(value: str, *, migration: bool = False) -> str:
+    choices = ("shared", "native") if migration else ("auto", "native")
+    normalized = value.strip().lower()
+    if normalized not in choices:
+        raise typer.BadParameter(
+            f"Choose one of: {', '.join(choices)}.",
+            param_hint="--skills-layout",
+        )
+    return normalized
 
 
 # Constants kept for backward compatibility with presets and extensions.
@@ -6832,6 +6840,9 @@ def init(
         None,
         "--workflow-profile",
         help="Workflow prompt profile for skills integrations: classic or advanced",
+    ),
+    skills_layout: str = typer.Option(
+        "auto", "--skills-layout", help="Project skill location: auto (shared when supported) or native.",
     ),
 ):
     """
@@ -7056,6 +7067,8 @@ def init(
 
     from .integrations.base import SkillsIntegration as _WorkflowProfileSkills
 
+    skills_layout = _validate_skills_layout(skills_layout)
+
     workflow_profile_choices = {
         "classic": "Classic - current full Spec Kit workflow skills",
         "advanced": "Advanced - concise SPX skills for advanced models",
@@ -7267,6 +7280,7 @@ def init(
             if ai_skills:
                 integration_parsed_options["skills"] = True
             integration_parsed_options["workflow_profile"] = workflow_profile
+            integration_parsed_options["skills_layout"] = skills_layout
 
             resolved_integration.setup(
                 project_path,
@@ -7560,23 +7574,8 @@ def init(
         ai_skills or _is_skills_integration
     )
     kimi_skill_mode = selected_ai == "kimi"
-    agy_skill_mode = selected_ai == "agy" and _is_skills_integration
-    cursor_agent_skill_mode = selected_ai == "cursor-agent" and _is_skills_integration
-    trae_skill_mode = selected_ai == "trae" and _is_skills_integration
-    vibe_skill_mode = selected_ai == "vibe" and _is_skills_integration
-    zcode_skill_mode = selected_ai == "zcode" and _is_skills_integration
-    grok_skill_mode = selected_ai == "grok" and _is_skills_integration
-    native_skill_mode = (
-        codex_skill_mode
-        or claude_skill_mode
-        or kimi_skill_mode
-        or agy_skill_mode
-        or cursor_agent_skill_mode
-        or trae_skill_mode
-        or vibe_skill_mode
-        or zcode_skill_mode
-        or grok_skill_mode
-    )
+    dollar_skill_mode = selected_ai in {"codex", "trae", "zcode"}
+    native_skill_mode = _is_skills_integration
 
     if native_skill_mode and not ai_skills:
         agent_start_labels = {
@@ -7594,11 +7593,7 @@ def init(
             selected_ai,
             resolved_integration.config.get("name", selected_ai).strip(),
         )
-        skill_folder = resolved_integration.config.get("folder", "").rstrip("/")
-        skill_subdir = resolved_integration.config.get(
-            "commands_subdir", "skills"
-        ).strip("/")
-        skills_path = f"{skill_folder}/{skill_subdir}" if skill_folder else skill_subdir
+        skills_path = resolved_integration.skills_dest(project_path).relative_to(project_path).as_posix()
         steps_lines.append(
             f"{step_num}. Start {agent_label} in this project directory; Spec Kit Plus skills were installed to [cyan]{skills_path}[/cyan]"
         )
@@ -7629,31 +7624,19 @@ def init(
     usage_label = "skills" if native_skill_mode else "slash commands"
 
     def _display_cmd(name: str) -> str:
-        if codex_skill_mode or agy_skill_mode or zcode_skill_mode:
+        if dollar_skill_mode:
             return f"$sp-{name}"
-        if (
-            cursor_agent_skill_mode
-            or vibe_skill_mode
-            or claude_skill_mode
-            or grok_skill_mode
-        ):
-            return f"/sp-{name}"
         if kimi_skill_mode:
             return f"/skill:sp-{name}"
-        if trae_skill_mode:
-            return f"$sp-{name}"
+        if native_skill_mode:
+            return f"/sp-{name}"
         return f"/sp.{name}"
 
     if workflow_profile == "advanced":
 
         def _spx_invocation(name: str) -> str:
             skill_name = f"spx-{name}"
-            if (
-                codex_skill_mode
-                or agy_skill_mode
-                or trae_skill_mode
-                or zcode_skill_mode
-            ):
+            if dollar_skill_mode:
                 return f"${skill_name}"
             if kimi_skill_mode:
                 return f"/skill:{skill_name}"
@@ -10145,6 +10128,7 @@ def _resolve_script_type(project_root: Path, script_type: str | None) -> str:
 def integration_list():
     """List available integrations and installed status."""
     from .integrations import INTEGRATION_REGISTRY
+    from .integrations.base import SkillsIntegration
 
     project_root = Path.cwd()
 
@@ -10177,6 +10161,10 @@ def integration_list():
 
     if installed_key:
         console.print(f"\n[dim]Current integration:[/dim] [cyan]{installed_key}[/cyan]")
+        installed = INTEGRATION_REGISTRY.get(installed_key)
+        if isinstance(installed, SkillsIntegration):
+            path = installed.skills_dest(project_root).relative_to(project_root)
+            console.print(Text(f"Project skills: {path.as_posix()}"))
     else:
         console.print("\n[yellow]No integration currently installed.[/yellow]")
         console.print(
@@ -10196,6 +10184,9 @@ def integration_install(
         None,
         "--integration-options",
         help='Options for the integration (e.g. --integration-options="--commands-dir .myagent/cmds")',
+    ),
+    skills_layout: str = typer.Option(
+        "auto", "--skills-layout", help="Project skill location: auto (shared when supported) or native.",
     ),
 ):
     """Install an integration into an existing project."""
@@ -10233,6 +10224,7 @@ def integration_install(
         raise typer.Exit(1)
 
     selected_script = _resolve_script_type(project_root, script)
+    skills_layout = _validate_skills_layout(skills_layout)
 
     # Ensure shared infrastructure is present (safe to run unconditionally;
     # _install_shared_infra merges missing files without overwriting).
@@ -10245,9 +10237,10 @@ def integration_install(
     )
 
     # Build parsed options from --integration-options
-    parsed_options: dict[str, Any] | None = None
+    parsed_options: dict[str, Any] = {}
     if integration_options:
-        parsed_options = _parse_integration_options(integration, integration_options)
+        parsed_options = _parse_integration_options(integration, integration_options) or {}
+    parsed_options["skills_layout"] = skills_layout
 
     try:
         integration.setup(
@@ -10698,10 +10691,15 @@ def integration_switch(
     integration_options: str | None = typer.Option(
         None, "--integration-options", help="Options for the target integration"
     ),
+    skills_layout: str = typer.Option(
+        "auto", "--skills-layout", help="Project skill location: auto (shared when supported) or native.",
+    ),
 ):
     """Switch from the current integration to a different one."""
     from .integrations import INTEGRATION_REGISTRY, get_integration
-    from .integrations.manifest import IntegrationManifest
+    from .integrations.base import SkillsIntegration
+    from .integrations.manifest import IntegrationManifest, ManifestConflictError
+    from .integrations.skill_layout import preflight_skill_install
 
     project_root = Path.cwd()
 
@@ -10724,6 +10722,54 @@ def integration_switch(
         raise typer.Exit(0)
 
     selected_script = _resolve_script_type(project_root, script)
+    skills_layout = _validate_skills_layout(skills_layout)
+    parsed_options: dict[str, Any] = {}
+    if integration_options:
+        parsed_options = _parse_integration_options(target_integration, integration_options) or {}
+    parsed_options["skills_layout"] = skills_layout
+    manifest = IntegrationManifest(
+        target_integration.key, project_root, version=get_speckit_version()
+    )
+    reactivating = False
+    target_profiles = None
+
+    try:
+        replacing_manifest = None
+        outgoing = get_integration(installed_key) if installed_key else None
+        if isinstance(outgoing, SkillsIntegration):
+            replacing_manifest = IntegrationManifest.load(installed_key, project_root)
+            if outgoing.installed_skill_layout(replacing_manifest) == "shared":
+                _require_unregistered_skill_addons(project_root, installed_key)
+                shared = outgoing.SHARED_SKILLS_DIR
+                prefix = shared.as_posix() + "/"
+                names = {
+                    path.removeprefix(prefix).split("/", 1)[0]
+                    for path in replacing_manifest.files if path.startswith(prefix)
+                }
+                preflight_skill_install(
+                    project_root, replacing_manifest, project_root / shared, names,
+                )
+        if isinstance(target_integration, SkillsIntegration):
+            try:
+                manifest = IntegrationManifest.load(target, project_root)
+            except FileNotFoundError:
+                pass
+            else:
+                if target_integration.installed_skill_layout(manifest) is None:
+                    raise ValueError(f"The existing '{target}' manifest does not record installed skills.")
+                if integration_options:
+                    raise ValueError(f"Reactivate '{target}' without --integration-options to retain its existing installation.")
+                reactivating = True
+                target_profiles = _installed_workflow_profiles(project_root, integration_key=target)
+                parsed_options["workflow_profile"] = target_profiles[-1]
+            if replacing_manifest is None and installed_key:
+                replacing_manifest = IntegrationManifest.load(installed_key, project_root)
+            target_integration.prepare_skill_install(
+                project_root, manifest, parsed_options, replacing_manifest=replacing_manifest
+            )
+    except (OSError, ValueError, ManifestConflictError) as exc:
+        console.print(Text(f"Cannot switch skill layouts: {exc}", style="red"))
+        raise typer.Exit(1) from exc
 
     # Phase 1: Uninstall current integration (if any)
     if installed_key:
@@ -10805,52 +10851,46 @@ def integration_switch(
     if os.name != "nt":
         ensure_executable_scripts(project_root)
 
-    # Phase 2: Install target integration
-    console.print(f"Installing integration: [cyan]{target}[/cyan]")
-    manifest = IntegrationManifest(
-        target_integration.key, project_root, version=get_speckit_version()
-    )
-
-    parsed_options: dict[str, Any] | None = None
-    if integration_options:
-        parsed_options = _parse_integration_options(
-            target_integration, integration_options
-        )
-
+    # Phase 2: Activate the target, reusing any already installed assets.
+    action = "Reactivating" if reactivating else "Installing"
+    console.print(f"{action} integration: [cyan]{target}[/cyan]")
     try:
-        target_integration.setup(
-            project_root,
-            manifest,
-            parsed_options=parsed_options,
-            script_type=selected_script,
-            raw_options=integration_options,
+        if not reactivating:
+            target_integration.setup(
+                project_root,
+                manifest,
+                parsed_options=parsed_options,
+                script_type=selected_script,
+                raw_options=integration_options,
+            )
+            _install_codex_team_assets_if_needed(
+                project_root,
+                manifest,
+                target_integration.key,
+            )
+            _bootstrap_integration_context_file(
+                project_root,
+                target_integration,
+                manifest,
+            )
+            target_integration.post_init_bootstrap(project_root, manifest)
+            manifest.save()
+        _write_integration_json(
+            project_root, target_integration.key, selected_script,
+            workflow_profiles=target_profiles,
         )
-        _install_codex_team_assets_if_needed(
-            project_root,
-            manifest,
-            target_integration.key,
-        )
-        _bootstrap_integration_context_file(
-            project_root,
-            target_integration,
-            manifest,
-        )
-        target_integration.post_init_bootstrap(project_root, manifest)
-        manifest.save()
-        _write_integration_json(project_root, target_integration.key, selected_script)
         _update_init_options_for_integration(
             project_root, target_integration, script_type=selected_script
         )
 
     except Exception as e:
-        # Attempt rollback of any files written by setup
-        try:
-            target_integration.teardown(project_root, manifest, force=True)
-        except Exception as rollback_err:
-            # Suppress so the original setup error remains the primary failure
-            console.print(
-                f"[yellow]Warning:[/yellow] Failed to roll back integration '{target}': {rollback_err}"
-            )
+        if not reactivating:
+            try:
+                target_integration.teardown(project_root, manifest, force=True)
+            except Exception as rollback_err:
+                console.print(
+                    f"[yellow]Warning:[/yellow] Failed to roll back integration '{target}': {rollback_err}"
+                )
         _remove_integration_json(project_root)
         console.print(
             f"[red]Error:[/red] Failed to install integration '{target}': {e}"
@@ -10861,6 +10901,76 @@ def integration_switch(
     console.print(f"\n[green]✓[/green] Switched to integration '{name}'")
     if target_integration.key == "claude":
         _print_claude_skill_shadow_warning(project_root)
+
+
+def _require_unregistered_skill_addons(project_root: Path, key: str) -> None:
+    from .extensions import ExtensionRegistry
+    from .presets import PresetRegistry
+
+    registries = (
+        ("extension", ExtensionRegistry(project_root / ".specify/extensions").list()),
+        ("preset", PresetRegistry(project_root / ".specify/presets").list()),
+    )
+    for kind, registry in registries:
+        for package, entry in registry.items():
+            if not isinstance(entry, dict):
+                continue
+            commands = entry.get("registered_commands")
+            if entry.get("registered_skills") or (
+                isinstance(commands, dict) and commands.get(key)
+            ):
+                raise ValueError(
+                    f"Remove the {kind} '{package}' before changing the skill layout "
+                    "and reinstall it afterward."
+                )
+
+
+@integration_app.command("migrate-skills")
+def integration_migrate_skills(
+    skills_layout: str = typer.Option(
+        "shared", "--skills-layout", help="Destination for the active integration: shared or native.",
+    ),
+):
+    """Move the active integration's managed skills to another project layout."""
+    from .integrations import get_integration
+    from .integrations.base import SkillsIntegration
+    from .integrations.manifest import IntegrationManifest, ManifestConflictError
+    from .integrations.skill_layout import migrate_skill_layout
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    layout = _validate_skills_layout(skills_layout, migration=True)
+    key = _read_integration_json(project_root).get("integration")
+    integration = get_integration(key) if key else None
+    if not isinstance(integration, SkillsIntegration):
+        console.print("[red]The active integration does not install workflow skills.[/red]")
+        raise typer.Exit(1)
+    if layout == "shared" and not integration.reads_shared_project_skills:
+        console.print(Text(f"{key} requires its native project skills directory.", style="red"))
+        raise typer.Exit(1)
+
+    try:
+        manifest = IntegrationManifest.load(key, project_root)
+        source = integration.skills_dest(project_root, manifest)
+        target = (
+            project_root / integration.SHARED_SKILLS_DIR
+            if layout == "shared"
+            else integration.native_skills_dest(project_root)
+        )
+        if source == target:
+            console.print(Text(f"Skills already use {target.relative_to(project_root).as_posix()}."))
+            return
+        _require_unregistered_skill_addons(project_root, key)
+        migrate_skill_layout(
+            project_root, manifest, source, target, layout=layout,
+            flat_project_skills=bool((integration.config or {}).get("flat_project_skills")),
+        )
+    except (OSError, ValueError, ManifestConflictError) as exc:
+        console.print(Text(f"Skills migration blocked: {exc}", style="red"))
+        for note in getattr(exc, "__notes__", ()):
+            console.print(Text(note))
+        raise typer.Exit(1) from exc
+    console.print(Text(f"Moved managed {key} skills to {target.relative_to(project_root).as_posix()}."))
 
 
 @integration_app.command("repair")
@@ -12630,10 +12740,11 @@ def extension_update(
         ExtensionCatalog,
         ExtensionError,
         ValidationError,
-        CommandRegistrar,
         HookExecutor,
         normalize_priority,
     )
+    from .agents import CommandRegistrar
+    from .atomic_io import atomic_write_bytes, read_local_state_bytes, safe_local_state_path
     from packaging import version as pkg_version
     import shutil
 
@@ -12747,6 +12858,40 @@ def extension_update(
         registrar = CommandRegistrar()
         hook_executor = HookExecutor(project_root)
 
+        def command_assets(metadata: dict | None) -> dict[Path, bool]:
+            """Find registered command paths and mark skill entrypoints."""
+            assets: dict[Path, bool] = {}
+            registered = (metadata or {}).get("registered_commands", {})
+            for agent_name, cmd_names in registered.items():
+                config = registrar.AGENT_CONFIGS.get(agent_name)
+                if config is None:
+                    continue
+                commands_dir = registrar._commands_dir(project_root, agent_name)
+                suffix = config["extension"]
+                for name in cmd_names:
+                    output = registrar._compute_output_name(agent_name, name, config)
+                    if Path(output).parts != (output,) or output == ".." or ":" in output:
+                        continue
+                    assets[commands_dir / f"{output}{suffix}"] = suffix == "/SKILL.md"
+                    if agent_name == "copilot":
+                        assets[project_root / ".github" / "prompts" / f"{name}.prompt.md"] = False
+
+            skills = (metadata or {}).get("registered_skills", [])
+            if skills and (skills_dir := manager._get_skills_dir()):
+                for name in skills:
+                    if isinstance(name, str) and Path(name).parts == (name,) and name != ".." and ":" not in name:
+                        assets[skills_dir / name / "SKILL.md"] = True
+            return assets
+
+        def owns_extension_skill(path: Path, extension_id: str) -> bool:
+            content = read_local_state_bytes(path, root=project_root)
+            header, _ = registrar.parse_frontmatter(content.decode("utf-8"))
+            metadata = header.get("metadata")
+            source = metadata.get("source") if isinstance(metadata, dict) else None
+            return isinstance(source, str) and (
+                source == f"extension:{extension_id}" or source.startswith(f"{extension_id}:")
+            )
+
         for update in updates_available:
             extension_id = update["id"]
             ext_name = update["name"]  # Use display name for user-facing messages
@@ -12786,56 +12931,21 @@ def extension_update(
                         backup_config_dir.mkdir(parents=True, exist_ok=True)
                         shutil.copy2(cfg_file, backup_config_dir / cfg_file.name)
 
-                # 3. Backup command files for all agents
-                from .agents import CommandRegistrar as _AgentReg
-
-                registered_commands = backup_registry_entry.get(
-                    "registered_commands", {}
-                )
-                for agent_name, cmd_names in registered_commands.items():
-                    if agent_name not in registrar.AGENT_CONFIGS:
+                # 3. Back up the exact current outputs, including shared skills.
+                shared_skills_dir = project_root / ".agents" / "skills"
+                for cmd_file, is_skill in command_assets(backup_registry_entry).items():
+                    cmd_file = safe_local_state_path(cmd_file, root=project_root)
+                    if not cmd_file.is_file():
                         continue
-                    agent_config = registrar.AGENT_CONFIGS[agent_name]
-                    commands_dir = project_root / agent_config["dir"]
-
-                    for cmd_name in cmd_names:
-                        output_name = _AgentReg._compute_output_name(
-                            agent_name, cmd_name, agent_config
-                        )
-                        cmd_file = (
-                            commands_dir / f"{output_name}{agent_config['extension']}"
-                        )
-                        if cmd_file.exists():
-                            backup_cmd_path = (
-                                backup_commands_dir / agent_name / cmd_file.name
-                            )
-                            backup_cmd_path.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copy2(cmd_file, backup_cmd_path)
-                            backed_up_command_files[str(cmd_file)] = str(
-                                backup_cmd_path
-                            )
-
-                        # Also backup copilot prompt files
-                        if agent_name == "copilot":
-                            prompt_file = (
-                                project_root
-                                / ".github"
-                                / "prompts"
-                                / f"{cmd_name}.prompt.md"
-                            )
-                            if prompt_file.exists():
-                                backup_prompt_path = (
-                                    backup_commands_dir
-                                    / "copilot-prompts"
-                                    / prompt_file.name
-                                )
-                                backup_prompt_path.parent.mkdir(
-                                    parents=True, exist_ok=True
-                                )
-                                shutil.copy2(prompt_file, backup_prompt_path)
-                                backed_up_command_files[str(prompt_file)] = str(
-                                    backup_prompt_path
-                                )
+                    if (
+                        is_skill and cmd_file.is_relative_to(shared_skills_dir)
+                        and not owns_extension_skill(cmd_file, extension_id)
+                    ):
+                        continue
+                    backup_cmd_path = backup_commands_dir / cmd_file.relative_to(project_root)
+                    backup_cmd_path.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(cmd_file, backup_cmd_path)
+                    backed_up_command_files[cmd_file] = (backup_cmd_path, is_skill)
 
                 # 4. Backup hooks from extensions.yml
                 # Use backup_hooks=None to indicate config had no "hooks" key (don't create on restore)
@@ -12979,61 +13089,30 @@ def extension_update(
                             shutil.rmtree(extension_dir)
                         shutil.copytree(backup_ext_dir, extension_dir)
 
-                    # Remove any NEW command files created by failed install
-                    # (files that weren't in the original backup)
-                    try:
-                        new_registry_entry = manager.registry.get(extension_id)
-                        if new_registry_entry is None or not isinstance(
-                            new_registry_entry, dict
-                        ):
-                            new_registered_commands = {}
-                        else:
-                            new_registered_commands = new_registry_entry.get(
-                                "registered_commands", {}
+                    # Remove replacement outputs that were not in the original backup.
+                    new_entry = manager.registry.get(extension_id)
+                    for cmd_file, is_skill in command_assets(new_entry).items():
+                        cmd_file = safe_local_state_path(cmd_file, root=project_root)
+                        if cmd_file in backed_up_command_files or not cmd_file.is_file():
+                            continue
+                        if is_skill and not owns_extension_skill(cmd_file, extension_id):
+                            continue
+                        cmd_file.unlink()
+
+                    # Restore each original path from its distinct backup file.
+                    for original_file, (backup_file, is_skill) in backed_up_command_files.items():
+                        if is_skill:
+                            original_bytes = backup_file.read_bytes()
+                            if original_file.exists():
+                                if read_local_state_bytes(original_file, root=project_root) == original_bytes:
+                                    continue
+                                if not owns_extension_skill(original_file, extension_id):
+                                    raise OSError(f"Skill changed during update; preserved {original_file}")
+                            atomic_write_bytes(
+                                safe_local_state_path(original_file, root=project_root), original_bytes,
+                                new_file_mode=stat.S_IMODE(backup_file.stat().st_mode),
                             )
-                        for agent_name, cmd_names in new_registered_commands.items():
-                            if agent_name not in registrar.AGENT_CONFIGS:
-                                continue
-                            agent_config = registrar.AGENT_CONFIGS[agent_name]
-                            commands_dir = project_root / agent_config["dir"]
-
-                            for cmd_name in cmd_names:
-                                output_name = _AgentReg._compute_output_name(
-                                    agent_name, cmd_name, agent_config
-                                )
-                                cmd_file = (
-                                    commands_dir
-                                    / f"{output_name}{agent_config['extension']}"
-                                )
-                                # Delete if it exists and wasn't in our backup
-                                if (
-                                    cmd_file.exists()
-                                    and str(cmd_file) not in backed_up_command_files
-                                ):
-                                    cmd_file.unlink()
-
-                                # Also handle copilot prompt files
-                                if agent_name == "copilot":
-                                    prompt_file = (
-                                        project_root
-                                        / ".github"
-                                        / "prompts"
-                                        / f"{cmd_name}.prompt.md"
-                                    )
-                                    if (
-                                        prompt_file.exists()
-                                        and str(prompt_file)
-                                        not in backed_up_command_files
-                                    ):
-                                        prompt_file.unlink()
-                    except KeyError:
-                        pass  # No new registry entry exists, nothing to clean up
-
-                    # Restore backed up command files
-                    for original_path, backup_path in backed_up_command_files.items():
-                        backup_file = Path(backup_path)
-                        if backup_file.exists():
-                            original_file = Path(original_path)
+                        else:
                             original_file.parent.mkdir(parents=True, exist_ok=True)
                             shutil.copy2(backup_file, original_file)
 

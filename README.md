@@ -55,6 +55,11 @@ specify check
 
 `specify init` creates the shared `.specify/` runtime and the native workflow catalog for the selected integration. `classic` is the non-interactive default; choose `advanced` when the integration supports skills and you want the independent `spx-*` catalog.
 
+New skill installations use `--skills-layout auto`. Integrations that discover
+project skills in `.agents/skills` use that directory. Other integrations use
+their configured native location. Use `--skills-layout native` at installation
+to select the integration's configured location explicitly.
+
 To scaffold once without installing the CLI:
 
 ```bash
@@ -209,8 +214,8 @@ Canonical workflow names are integration-neutral. Invocation syntax depends on t
 
 | Integration surface | Classic `specify` | Advanced `specify` | PRD reconstruction |
 | --- | --- | --- | --- |
-| Codex, Antigravity, Trae, and ZCode skills | `$sp-specify` | `$spx-specify` | `$sp-prd-scan -> $sp-prd-build` |
-| Claude, Cursor, Grok, and Mistral Vibe skills | `/sp-specify` | `/spx-specify` | `/sp-prd-scan -> /sp-prd-build` |
+| Codex, Trae, and ZCode skills | `$sp-specify` | `$spx-specify` | `$sp-prd-scan -> $sp-prd-build` |
+| Antigravity, Claude, Cursor, DeepSeek Harness, Factory Droid, Grok, and Mistral Vibe skills | `/sp-specify` | `/spx-specify` | `/sp-prd-scan -> /sp-prd-build` |
 | Kimi Code skills | `/skill:sp-specify` | `/skill:spx-specify` | `/skill:sp-prd-scan -> /skill:sp-prd-build` |
 | Slash-dot command integrations | `/sp.specify` | Not available | `/sp.prd-scan -> /sp.prd-build` |
 
@@ -222,7 +227,7 @@ The current registry is the source of the following integration keys:
 
 | Surface | Integration keys |
 | --- | --- |
-| Skills-based; Classic and Advanced | `agy`, `claude`, `codex`, `cursor-agent`, `grok`, `kimi`, `trae`, `vibe`, `zcode` |
+| Skills-based; Classic and Advanced | `agy`, `claude`, `codex`, `cursor-agent`, `droid`, `dsh`, `grok`, `kimi`, `trae`, `vibe`, `zcode` |
 | Command, prompt, or workflow based; Classic | `amp`, `auggie`, `bob`, `codebuddy`, `copilot`, `forge`, `gemini`, `iflow`, `junie`, `kilocode`, `kiro-cli`, `mimo`, `opencode`, `pi`, `qodercli`, `qwen`, `roo`, `shai`, `tabnine`, `windsurf` |
 | Bring your own agent | `generic` with `--ai-commands-dir <directory>` |
 
@@ -237,10 +242,15 @@ Run `specify init --help` for the authoritative list shipped by the installed CL
 | Upgrade to the current repository head | `uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git` |
 | Pin a release | Append `@vX.Y.Z` from [Releases](https://github.com/chenziyang110/spec-kit-plus-releases/releases) to the Git URL |
 | Repair runtime-managed generated assets | `specify integration repair` from the generated project root |
+| Move an existing managed skill catalog to a different layout | `specify integration migrate-skills` from the generated project root |
 | Diagnose tools and project compatibility | `specify check` |
 | Troubleshoot installation and PATH | [Installation Guide](docs/installation.md) and [Upgrade Guide](docs/upgrade.md) |
 
 `specify version` reports package and interpreter information, but development installs can share the same `.dev0` version across commits. Verify the active command surface with `specify --help`; on Windows, use `Get-Command specify -All` to find stale pip, Conda, or uv entrypoints that may shadow the intended executable.
+
+Existing installations keep their recorded layout through ordinary regeneration
+and repair. See the [Upgrade Guide](docs/upgrade.md#migrate-an-installed-skill-layout)
+for explicit migration and handling of user-owned skills.
 
 Core scaffolding assets are bundled in the Python package. Tagged releases also
 publish matching prebuilt `specify-runtime` binaries for Windows, Linux, and
@@ -1196,14 +1206,15 @@ Invocation syntax depends on the integration:
 | Integration surface | Example: specify | Example: prd-scan -> prd-build | Example: plan | Notes |
 | --- | --- | --- | --- | --- |
 | Codex skills | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | Skills-backed Codex projects use `$sp-*`. |
-| Antigravity skills | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | Antigravity projects install workflow skills under `.agents/skills`. |
+| Antigravity skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | Antigravity projects install workflow skills under `.agents/skills`. |
 | Kimi Code skills | `/skill:sp-specify` | `/skill:sp-prd-scan -> /skill:sp-prd-build` | `/skill:sp-plan` | Kimi exposes generated skills through `/skill:sp-*`. |
 | Claude skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | Claude keeps slash-style skill commands. |
-| Cursor skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | Cursor projects install workflow skills under `.cursor/skills` and keep `.cursor/rules/` for context files. |
+| Cursor skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | Auto uses `.agents/skills`. Native uses `.cursor/skills`. Context files live in `.cursor/rules/`. |
+| DeepSeek Harness (`dsh`) and Factory Droid (`droid`) | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | Both use `.agents/skills` by default and root `AGENTS.md` for project context. |
 | Grok skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | Grok projects install workflow skills under `.grok/skills` and keep root `AGENTS.md` as context. |
-| Trae skills | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | Trae projects install workflow skills under `.trae/skills` and keep `.trae/rules/project_rules.md` as context. |
-| Mistral Vibe skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | Vibe projects install workflow skills under `.vibe/skills`. |
-| ZCode skills | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | ZCode projects install workflow skills under `.zcode/skills`; use `.agents/skills` only for cross-tool shared skills. |
+| Trae skills | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | Auto uses `.agents/skills`. Native uses `.trae/skills`. Context lives in `.trae/rules/project_rules.md`. |
+| Mistral Vibe skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | Auto uses `.agents/skills`. Native uses `.vibe/skills`. Vibe requires a trusted project to discover project skills. |
+| ZCode skills | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | ZCode projects install workflow skills under `.zcode/skills`. |
 | MiMo Code commands | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | MiMo projects install workflow commands under `.mimocode/commands` and keep root `AGENTS.md` as context. |
 | Slash-dot command integrations | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | Gemini, Copilot, Windsurf, Forge, and similar command/prompt integrations use slash-dot examples unless their native UI documents a different launcher. |
 
@@ -1581,7 +1592,11 @@ Shared runtime-facing guidance across integrations:
 - The shared contract is integration-neutral: leader role, join-point discipline, structured handoff expectations, and `reported_status` preservation are common across CLIs. Workflow-specific fallback semantics stay explicit in the command guidance.
 - Only the concrete dispatch and join commands remain integration-specific. For example, Codex names `spawn_agent` and `wait_agent`; completed agents are already terminal, and `sp-teams` is used only when durable team state is explicitly needed.
 
-For Codex and other skills-based integrations, the generated commands are installed in skills form. Codex now uses the dedicated `.codex/skills/` directory for generated skills.
+For Codex and other skills-based integrations, workflows install as skills.
+Codex uses `.agents/skills/` for a new auto install and `.codex/skills/` for
+the native layout. Each generated catalog uses the selected Plus integration's
+invocation syntax and tool instructions. Run those workflows in that integration.
+Independently installed generic shared skills can coexist under their own names.
 
 Skills-based projects now install two layers into the same skills directory:
 

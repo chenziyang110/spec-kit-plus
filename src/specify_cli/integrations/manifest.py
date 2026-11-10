@@ -221,13 +221,15 @@ def _is_manifest_control_path(path: Path, root: Path) -> bool:
     if directory == (".specify", "integrations"):
         return name.endswith(".manifest.json")
     if directory == (".specify", "runtime"):
-        return name == "launcher-config.lock" or (
+        return name in {"launcher-config.lock", "skill-layout.lock"} or (
             name.startswith("manifest-") and name.endswith(".lock")
         )
     return False
 
 
-def _other_manifest_assets(root: Path, own_manifest: Path) -> set[str]:
+def _other_manifest_assets(
+    root: Path, own_manifest: Path, *, replacing_manifest: Path | None = None,
+) -> set[str]:
     """Read peer ownership once before cleanup; unreadable peers stop deletion.
 
     Only the validated ``files`` mapping confers ownership. A peer's claim is
@@ -248,7 +250,9 @@ def _other_manifest_assets(root: Path, own_manifest: Path) -> set[str]:
         return set()
     assets: set[str] = set()
     suffix = ".manifest.json"
-    own_name = os.path.normcase(os.fspath(own_manifest))
+    excluded = {os.path.normcase(os.fspath(own_manifest))}
+    if replacing_manifest is not None:
+        excluded.add(os.path.normcase(os.fspath(replacing_manifest)))
 
     def peer_paths() -> list[Path]:
         # Recheck the directory itself before each enumeration. Ignore ordinary
@@ -257,7 +261,7 @@ def _other_manifest_assets(root: Path, own_manifest: Path) -> set[str]:
         return sorted(
             (path for path in directory.iterdir()
              if path.name.casefold().endswith(suffix)
-             and os.path.normcase(os.fspath(path)) != own_name),
+             and os.path.normcase(os.fspath(path)) not in excluded),
             key=lambda item: item.name,
         )
 
@@ -550,6 +554,23 @@ class IntegrationManifest:
         """Return a copy of the ``{rel_path: sha256}`` mapping."""
         return dict(self._files)
 
+    @property
+    def skill_layout(self) -> str | None:
+        """Return the persisted skill destination choice, if present."""
+        layout = self._extra_metadata.get("skill_layout")
+        if layout is not None and layout not in ("native", "shared"):
+            raise ValueError(f"Invalid skill layout in {self.manifest_path}: {layout!r}")
+        return layout
+
+    @skill_layout.setter
+    def skill_layout(self, layout: str | None) -> None:
+        if layout is None:
+            self._extra_metadata.pop("skill_layout", None)
+        elif layout in ("native", "shared"):
+            self._extra_metadata["skill_layout"] = layout
+        else:
+            raise ValueError(f"Invalid skill layout: {layout!r}")
+
     def check_modified(self) -> list[str]:
         """Report changed or uninspectable tracked files; missing files stay absent."""
         modified: list[str] = []
@@ -776,6 +797,16 @@ class IntegrationManifest:
         An error after replacement (such as directory fsync) does not roll it back.
         """
         path = safe_local_state_path(self.manifest_path, root=self.project_root)
+        content, installed_at, revision = self._prepare_save(path)
+        self._observe_manifest()
+        with _locked_manifest_revision(
+            path, self.project_root, self.key, self._observed_revision,
+        ):
+            self._save_locked(path, content, installed_at, revision)
+        return path
+
+    def _prepare_save(self, path: Path) -> tuple[str, str, str]:
+        """Serialize a complete candidate before publishing under the lock."""
         data: dict[str, Any] = {
             "integration": self.key,
             "version": self.version,
@@ -789,37 +820,38 @@ class IntegrationManifest:
         # Keep the existing escaped-ASCII JSON formatting for downstream readers.
         content = json.dumps(data, indent=2, allow_nan=False) + "\n"
         revision = hashlib.sha256(content.encode("utf-8")).hexdigest()
-        self._observe_manifest()
-        with _locked_manifest_revision(
-            path, self.project_root, self.key, self._observed_revision,
-        ):
-            unchanged = False
-            if revision == self._observed_revision == self._published_revision:
-                metadata = path.lstat()
-                # Do not retain a shared inode merely because its bytes match:
-                # the existing publication contract detaches hardlinked backups.
-                unchanged = stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1
-            if unchanged:
-                # Check again before certifying a no-op. An external edit noticed
-                # here is a conflict, never a reason to overwrite newer content.
-                if _manifest_revision(path, self.project_root) != revision:
-                    raise ManifestConflictError(
-                        "Integration manifest changed during unchanged save; "
-                        "reload and reconcile before continuing."
-                    )
-            else:
-                # Any publication attempt can replace the inode before reporting
-                # an error (for example, a directory sync failure). An earlier
-                # success for identical bytes cannot certify that new inode.
-                # Invalidate before the attempt, including interrupted writes;
-                # only a fully successful publication below restores the marker.
-                self._published_revision = None
-                # Match ordinary creation permissions and preserve existing modes.
-                atomic_write_text(path, content, new_file_mode=0o666)
-            self._installed_at = installed_at
-            self._observed_revision = revision
-            self._published_revision = revision
-        return path
+        return content, installed_at, revision
+
+    def _save_locked(
+        self, path: Path, content: str, installed_at: str, revision: str,
+    ) -> None:
+        """Publish a prepared revision while holding this manifest's lock."""
+        unchanged = False
+        if revision == self._observed_revision == self._published_revision:
+            metadata = path.lstat()
+            # Do not retain a shared inode merely because its bytes match:
+            # the existing publication contract detaches hardlinked backups.
+            unchanged = stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1
+        if unchanged:
+            # Check again before certifying a no-op. An external edit noticed
+            # here is a conflict, never a reason to overwrite newer content.
+            if _manifest_revision(path, self.project_root) != revision:
+                raise ManifestConflictError(
+                    "Integration manifest changed during unchanged save; "
+                    "reload and reconcile before continuing."
+                )
+        else:
+            # Any publication attempt can replace the inode before reporting
+            # an error (for example, a directory sync failure). An earlier
+            # success for identical bytes cannot certify that new inode.
+            # Invalidate before the attempt, including interrupted writes;
+            # only a fully successful publication below restores the marker.
+            self._published_revision = None
+            # Match ordinary creation permissions and preserve existing modes.
+            atomic_write_text(path, content, new_file_mode=0o666)
+        self._installed_at = installed_at
+        self._observed_revision = revision
+        self._published_revision = revision
 
     @classmethod
     def load(cls, key: str, project_root: Path) -> IntegrationManifest:

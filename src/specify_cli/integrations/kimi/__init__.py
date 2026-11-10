@@ -1,7 +1,7 @@
 """Kimi Code integration — skills-based agent (Moonshot AI).
 
-Kimi uses the ``.kimi/skills/sp-<name>/SKILL.md`` layout with
-``/skill:sp-<name>`` invocation syntax.
+Kimi discovers project skills in ``.agents/skills``. The legacy adapter
+location is ``.kimi/skills``. Invocation uses ``/skill:sp-<name>``.
 
 Includes legacy migration logic for projects initialised before Kimi
 moved from dotted skill directories (``sp.xxx``) to hyphenated
@@ -26,6 +26,7 @@ class KimiIntegration(SkillsIntegration):
         "name": "Kimi Code",
         "folder": ".kimi/",
         "commands_subdir": "skills",
+        "shared_project_skills": True,
         "install_url": "https://code.kimi.com/",
         "requires_cli": True,
     }
@@ -71,7 +72,7 @@ class KimiIntegration(SkillsIntegration):
         )
 
         if parsed_options.get("migrate_legacy", False):
-            skills_dir = self.skills_dest(project_root)
+            skills_dir = self.native_skills_dest(project_root)
             if skills_dir.is_dir():
                 _migrate_legacy_kimi_dotted_skills(skills_dir)
 

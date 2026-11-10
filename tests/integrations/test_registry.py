@@ -26,7 +26,7 @@ ALL_INTEGRATION_KEYS = [
     # Stage 4 — TOML integrations
     "gemini", "tabnine",
     # Stage 5 — skills, generic & option-driven integrations
-    "codex", "kimi", "agy", "zcode", "grok", "generic",
+    "codex", "kimi", "agy", "droid", "dsh", "zcode", "grok", "generic",
 ]
 
 
@@ -146,6 +146,8 @@ class TestRegistrarKeyAlignment:
         [
             ("agy", ".agents/", "skills", ".agents/skills", "AGENTS.md"),
             ("cursor-agent", ".cursor/", "skills", ".cursor/skills", ".cursor/rules/specify-rules.mdc"),
+            ("droid", ".factory/", "skills", ".factory/skills", "AGENTS.md"),
+            ("dsh", ".dsh/", "skills", ".dsh/skills", "AGENTS.md"),
             ("kimi", ".kimi/", "skills", ".kimi/skills", "KIMI.md"),
             ("trae", ".trae/", "skills", ".trae/skills", ".trae/rules/project_rules.md"),
             ("vibe", ".vibe/", "skills", ".vibe/skills", "AGENTS.md"),

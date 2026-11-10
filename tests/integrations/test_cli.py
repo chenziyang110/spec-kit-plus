@@ -84,7 +84,7 @@ class TestInitIntegrationFlag:
             os.chdir(old_cwd)
 
         assert result.exit_code == 0, result.output
-        assert (project / ".codex" / "skills" / "sp-teams" / "SKILL.md").exists()
+        assert (project / ".agents" / "skills" / "sp-teams" / "SKILL.md").exists()
         assert (project / ".specify" / "teams" / "runtime.json").exists()
         assert (project / ".specify" / "templates" / "project-handbook-template.md").exists()
         lifecycle_template = json.loads(
@@ -777,7 +777,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert "Plus Enhancement Skills" not in result.output
         assert "Agent Folder Security" not in result.output
         assert "Spec Kit Plus skills were" in result.output
-        assert ".codex/skills" in result.output
+        assert ".agents/skills" in result.output
         assert "Start using skills with your AI agent" in result.output
         assert "Core workflow skills" in result.output
         assert "Support skills" in result.output
@@ -909,7 +909,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
 
         assert result.exit_code == 0, result.output
         assert "Spec Kit Plus skills were" in result.output
-        assert ".cursor/skills" in result.output
+        assert ".agents/skills" in result.output
         assert "Start using skills with your AI agent" in result.output
         assert "/sp-plan" in result.output
         assert "/sp.specify" not in result.output
@@ -946,7 +946,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
 
         assert result.exit_code == 0, result.output
         assert "Spec Kit Plus skills were" in result.output
-        assert ".vibe/skills" in result.output
+        assert ".agents/skills" in result.output
         assert "Start using skills with your AI agent" in result.output
         assert "/sp-plan" in result.output
         assert "/sp.specify" not in result.output
@@ -999,7 +999,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
 
         assert result.exit_code == 0, result.output
 
-        skills_dir = project / ".codex" / "skills"
+        skills_dir = project / ".agents" / "skills"
 
         assert (skills_dir / "sp-discussion" / "SKILL.md").exists()
         assert (skills_dir / "sp-deep-research" / "SKILL.md").exists()

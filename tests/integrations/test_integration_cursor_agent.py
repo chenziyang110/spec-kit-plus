@@ -31,8 +31,8 @@ def test_cursor_skills_init_installs_command_and_passive_skills(tmp_path):
     )
 
     assert result.exit_code == 0, f"init --ai cursor-agent failed: {result.output}"
-    assert (target / ".cursor" / "skills" / "sp-plan" / "SKILL.md").exists()
-    ask_path = target / ".cursor" / "skills" / "sp-ask" / "SKILL.md"
+    assert (target / ".agents" / "skills" / "sp-plan" / "SKILL.md").exists()
+    ask_path = target / ".agents" / "skills" / "sp-ask" / "SKILL.md"
     assert ask_path.exists()
     ask_content = ask_path.read_text(encoding="utf-8")
     ask_lower = ask_content.lower()
@@ -52,11 +52,11 @@ def test_cursor_skills_init_installs_command_and_passive_skills(tmp_path):
     assert "Do not execute project CLI commands" in ask_content
     assert "discussion-state.md" not in ask_content
     assert "handoff-to-specify" not in ask_content
-    assert not (target / ".cursor" / "skills" / "spec-kit-workflow-routing").exists()
+    assert not (target / ".agents" / "skills" / "spec-kit-workflow-routing").exists()
 
     for skill_name in ("sp-design", "sp-plan", "sp-tasks"):
         content = _read_skill_with_references(
-            target / ".cursor" / "skills" / skill_name / "SKILL.md"
+            target / ".agents" / "skills" / skill_name / "SKILL.md"
         ).lower()
         assert "codex native subagents" not in content, skill_name
         assert "sp-teams submit-result" not in content, skill_name
@@ -71,7 +71,7 @@ def test_cursor_init_here_retries_transient_implement_rewrite(
     target = tmp_path / "existing-cursor-project"
     target.mkdir()
     (target / "existing.txt").write_text("keep\n", encoding="utf-8")
-    implement_skill = target / ".cursor" / "skills" / "sp-implement" / "SKILL.md"
+    implement_skill = target / ".agents" / "skills" / "sp-implement" / "SKILL.md"
     real_replace = os.replace
     attempts = 0
 
@@ -124,7 +124,7 @@ def test_cursor_generated_sp_quick_confirms_understanding_before_execution(tmp_p
 
     assert result.exit_code == 0, f"init --ai cursor-agent failed: {result.output}"
 
-    skill_path = target / ".cursor" / "skills" / "sp-quick" / "SKILL.md"
+    skill_path = target / ".agents" / "skills" / "sp-quick" / "SKILL.md"
     content = _read_skill_with_references(skill_path).lower()
 
     assert ".specify/memory/constitution.md" in content
@@ -190,7 +190,7 @@ def test_cursor_generated_sp_implement_uses_native_task_lifecycle(tmp_path):
     assert result.exit_code == 0, f"init --ai cursor-agent failed: {result.output}"
 
     content = _read_skill_with_references(
-        target / ".cursor" / "skills" / "sp-implement" / "SKILL.md"
+        target / ".agents" / "skills" / "sp-implement" / "SKILL.md"
     )
     lowered = content.lower()
 
@@ -235,10 +235,10 @@ def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):
     assert result.exit_code == 0, f"init --ai cursor-agent failed: {result.output}"
 
     for rel in (
-        ".cursor/skills/sp-constitution/SKILL.md",
-        ".cursor/skills/sp-implement/SKILL.md",
-        ".cursor/skills/sp-debug/SKILL.md",
-        ".cursor/skills/sp-quick/SKILL.md",
+        ".agents/skills/sp-constitution/SKILL.md",
+        ".agents/skills/sp-implement/SKILL.md",
+        ".agents/skills/sp-debug/SKILL.md",
+        ".agents/skills/sp-quick/SKILL.md",
     ):
         content = _read_skill_with_references(target / rel).lower()
         assert "map-scan" in content

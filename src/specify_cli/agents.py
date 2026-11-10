@@ -41,7 +41,7 @@ class CommandRegistrar:
     _configs_loaded: bool = False
     PASSIVELY_INVOCABLE_CLASSIC_SKILLS = frozenset()
     NATIVE_MODEL_INVOCATION_CONTROL_AGENTS = frozenset(
-        {"claude", "cursor-agent", "grok", "kimi"}
+        {"claude", "cursor-agent", "droid", "dsh", "grok", "kimi"}
     )
     USER_INVOKED_DESCRIPTION_PREFIX = (
         "User-invoked workflow only: activate only after the user explicitly "
@@ -51,6 +51,81 @@ class CommandRegistrar:
 
     def __init__(self) -> None:
         self._ensure_configs()
+
+    def _commands_dir(self, project_root: Path, agent_name: str) -> Path:
+        config = self.AGENT_CONFIGS[agent_name]
+        if config["extension"] == "/SKILL.md":
+            from . import _get_skills_dir
+
+            return _get_skills_dir(project_root, agent_name)
+        return project_root / config["dir"]
+
+    @classmethod
+    def may_write_shared_skill(
+        cls,
+        project_root: Path,
+        path: Path,
+        *,
+        owner: str | None = None,
+    ) -> bool:
+        """Preserve unrelated skills in the shared project namespace."""
+        from .atomic_io import read_local_state_bytes, safe_local_state_path
+
+        path = safe_local_state_path(path, root=project_root)
+        if not path.exists():
+            return not path.parent.exists() or (
+                path.parent.is_dir() and not any(path.parent.iterdir())
+            )
+        if not owner or not path.is_file() or path.stat().st_nlink != 1:
+            return False
+        return cls.shared_skill_has_owner(
+            project_root, path, read_local_state_bytes(path, root=project_root), owner,
+        )
+
+    @classmethod
+    def shared_skill_has_owner(
+        cls, project_root: Path, path: Path, content: bytes, owner: str,
+    ) -> bool:
+        """Check an original skill against current Plus and extension ownership."""
+        from hashlib import sha256
+
+        from .extensions import ExtensionRegistry
+        from .integrations.manifest import IntegrationManifest
+
+        try:
+            manifest = IntegrationManifest.load(owner, project_root)
+        except FileNotFoundError:
+            manifest = None
+        if manifest is not None:
+            relative = path.relative_to(manifest.project_root).as_posix()
+            if manifest.files.get(relative) == sha256(content).hexdigest():
+                return True
+        try:
+            frontmatter, _ = cls.parse_frontmatter(content.decode("utf-8"))
+        except UnicodeDecodeError:
+            return False
+        metadata = frontmatter.get("metadata")
+        source = metadata.get("source") if isinstance(metadata, dict) else None
+        if not isinstance(source, str) or ":" not in source:
+            return False
+
+        extension_id = (
+            source.removeprefix("extension:")
+            if source.startswith("extension:")
+            else source.partition(":")[0]
+        )
+        entry = ExtensionRegistry(project_root / ".specify/extensions").get(extension_id)
+        if not isinstance(entry, dict):
+            return False
+        skill = path.parent.name
+        if skill in entry.get("registered_skills", []):
+            return True
+        registrations = entry.get("registered_commands", {})
+        config = cls.AGENT_CONFIGS.get(owner)
+        return bool(config and isinstance(registrations, dict) and any(
+            cls._compute_output_name(owner, command, config) == skill
+            for command in registrations.get(owner, [])
+        ))
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -259,7 +334,7 @@ class CommandRegistrar:
 
         if agent_name in {"codex", "kimi", "claude", "grok"}:
             body = self.resolve_skill_placeholders(agent_name, frontmatter, body, project_root)
-        elif agent_name in {"agy", "zcode"}:
+        elif agent_name in {"agy", "droid", "dsh", "zcode"}:
             body = self.apply_skill_invocation_conventions(agent_name, body)
         body = self.render_invocation_placeholders(agent_name, body)
 
@@ -360,9 +435,9 @@ class CommandRegistrar:
     @staticmethod
     def _skill_invocation_example(agent_name: str) -> str | None:
         """Return the agent-specific skill invocation example when applicable."""
-        if agent_name in {"codex", "agy", "zcode"}:
+        if agent_name in {"codex", "zcode"}:
             return "$sp-plan"
-        if agent_name in {"claude", "grok"}:
+        if agent_name in {"agy", "claude", "droid", "dsh", "grok"}:
             return "/sp-plan"
         if agent_name == "kimi":
             return "/skill:sp-plan"
@@ -374,11 +449,11 @@ class CommandRegistrar:
         normalized = workflow_name.strip().lstrip("/").removeprefix("sp.")
         normalized = normalized.removeprefix("sp-")
 
-        if agent_name in {"codex", "agy", "zcode"}:
+        if agent_name in {"codex", "zcode"}:
             return f"$sp-{normalized}"
         if agent_name == "kimi":
             return f"/skill:sp-{normalized}"
-        if agent_name in {"claude", "grok"}:
+        if agent_name in {"agy", "claude", "droid", "dsh", "grok"}:
             return f"/sp-{normalized}"
         return f"/sp.{normalized}"
 
@@ -557,7 +632,7 @@ class CommandRegistrar:
         source_id: str,
         source_dir: Path,
         project_root: Path,
-        context_note: str = None
+        context_note: str = None,
     ) -> List[str]:
         """Register commands for a specific agent.
 
@@ -580,7 +655,12 @@ class CommandRegistrar:
             raise ValueError(f"Unsupported agent: {agent_name}")
 
         agent_config = self.AGENT_CONFIGS[agent_name]
-        commands_dir = project_root / agent_config["dir"]
+        commands_dir = self._commands_dir(project_root, agent_name)
+        shared = commands_dir == project_root / ".agents" / "skills"
+        if shared:
+            from .atomic_io import safe_local_state_path
+
+            safe_local_state_path(commands_dir, root=project_root)
         commands_dir.mkdir(parents=True, exist_ok=True)
 
         registered = []
@@ -623,6 +703,8 @@ class CommandRegistrar:
                 raise ValueError(f"Unsupported format: {agent_config['format']}")
 
             dest_file = commands_dir / f"{output_name}{agent_config['extension']}"
+            if shared and not self.may_write_shared_skill(project_root, dest_file):
+                continue
             dest_file.parent.mkdir(parents=True, exist_ok=True)
             dest_file.write_text(output, encoding="utf-8")
 
@@ -658,6 +740,8 @@ class CommandRegistrar:
                         )
 
                 alias_file = commands_dir / f"{alias_output_name}{agent_config['extension']}"
+                if shared and not self.may_write_shared_skill(project_root, alias_file):
+                    continue
                 alias_file.parent.mkdir(parents=True, exist_ok=True)
                 alias_file.write_text(alias_output, encoding="utf-8")
                 if agent_name == "copilot":
@@ -685,7 +769,7 @@ class CommandRegistrar:
         source_id: str,
         source_dir: Path,
         project_root: Path,
-        context_note: str = None
+        context_note: str = None,
     ) -> Dict[str, List[str]]:
         """Register commands for all detected agents in the project.
 
@@ -701,15 +785,30 @@ class CommandRegistrar:
         """
         results = {}
 
+        from . import _read_integration_json, load_init_options
+
         self._ensure_configs()
-        for agent_name, agent_config in self.AGENT_CONFIGS.items():
-            agent_dir = project_root / agent_config["dir"]
+        active = _read_integration_json(project_root).get("integration")
+        if not active:
+            options = load_init_options(project_root)
+            if isinstance(options, dict):
+                active = options.get("integration") or options.get("ai")
+        if not isinstance(active, str):
+            active = None
+        candidates = [active] if active in self.AGENT_CONFIGS else self.AGENT_CONFIGS
+        for agent_name in candidates:
+            agent_dir = self._commands_dir(project_root, agent_name)
+            if not active and agent_name != "codex" and agent_dir == project_root / ".agents" / "skills":
+                from .integrations.manifest import IntegrationManifest
+
+                if not IntegrationManifest(agent_name, project_root).manifest_path.is_file():
+                    continue
 
             if agent_dir.exists():
                 try:
                     registered = self.register_commands(
                         agent_name, commands, source_id, source_dir, project_root,
-                        context_note=context_note
+                        context_note=context_note,
                     )
                     if registered:
                         results[agent_name] = registered
@@ -721,7 +820,9 @@ class CommandRegistrar:
     def unregister_commands(
         self,
         registered_commands: Dict[str, List[str]],
-        project_root: Path
+        project_root: Path,
+        *,
+        source_id: str | None = None,
     ) -> None:
         """Remove previously registered command files from agent directories.
 
@@ -735,12 +836,26 @@ class CommandRegistrar:
                 continue
 
             agent_config = self.AGENT_CONFIGS[agent_name]
-            commands_dir = project_root / agent_config["dir"]
+            commands_dir = self._commands_dir(project_root, agent_name)
 
             for cmd_name in cmd_names:
                 output_name = self._compute_output_name(agent_name, cmd_name, agent_config)
                 cmd_file = commands_dir / f"{output_name}{agent_config['extension']}"
                 if cmd_file.exists():
+                    if commands_dir == project_root / ".agents" / "skills":
+                        from .atomic_io import read_local_state_bytes
+
+                        try:
+                            content = read_local_state_bytes(cmd_file, root=project_root)
+                            frontmatter, _ = self.parse_frontmatter(content.decode("utf-8"))
+                        except (OSError, ValueError):
+                            continue
+                        metadata = frontmatter.get("metadata")
+                        source = metadata.get("source") if isinstance(metadata, dict) else None
+                        if not (
+                            source_id and isinstance(source, str) and source.startswith(f"{source_id}:")
+                        ):
+                            continue
                     cmd_file.unlink()
 
                 if agent_name == "copilot":

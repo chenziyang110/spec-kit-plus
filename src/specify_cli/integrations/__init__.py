@@ -55,6 +55,8 @@ def _register_builtins() -> None:
     from .codebuddy import CodebuddyIntegration
     from .copilot import CopilotIntegration
     from .cursor_agent import CursorAgentIntegration
+    from .droid import DroidIntegration
+    from .dsh import DshIntegration
     from .forge import ForgeIntegration
     from .gemini import GeminiIntegration
     from .generic import GenericIntegration
@@ -87,6 +89,8 @@ def _register_builtins() -> None:
     _register(CodebuddyIntegration())
     _register(CopilotIntegration())
     _register(CursorAgentIntegration())
+    _register(DroidIntegration())
+    _register(DshIntegration())
     _register(ForgeIntegration())
     _register(GeminiIntegration())
     _register(GenericIntegration())

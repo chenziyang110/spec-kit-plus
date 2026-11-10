@@ -196,6 +196,24 @@ Project feature work lives under `.specify/features/**`. Treat those artifacts,
 source code, tests, and git history as user/project state; inspect the diff and
 do not remove them as part of an upgrade.
 
+### Migrate an Installed Skill Layout
+
+Existing projects keep their installed layout when they upgrade the CLI,
+regenerate a profile, or repair generated assets. To move a managed catalog to
+`.agents/skills/`, run `specify integration migrate-skills` from the project
+root with a supported integration installed. To move to the integration's
+configured native directory, use
+`specify integration migrate-skills --skills-layout native`.
+
+The migration applies to the installed Plus catalog, including its profiles
+and supporting files. Keep user-managed skills and local edits. Review any
+reported conflicts before retrying and use the selected integration to invoke
+the migrated workflows.
+
+If an extension or preset has registered workflow skills, migration stops
+until you remove that extension or preset. Reinstall it after migration so
+its skills register in the new location.
+
 ## Project Cognition Compatibility
 
 `specify-runtime` Project Cognition schema v5 is current-only. It does not

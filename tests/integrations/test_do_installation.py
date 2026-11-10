@@ -20,7 +20,7 @@ from specify_cli.launcher import load_runtime_launcher, write_runtime_launcher_c
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILLS = (
-    "agy", "claude", "codex", "cursor-agent", "grok", "kimi", "trae", "vibe", "zcode",
+    "agy", "claude", "codex", "cursor-agent", "droid", "dsh", "grok", "kimi", "trae", "vibe", "zcode",
 )
 MAP_COMPANIONS = {"sp-map-scan", "sp-map-build", "sp-map-update"}
 
@@ -32,9 +32,12 @@ def install(project: Path, key: str, profile: str, script_type: str):
     write_runtime_launcher_config(project, binary)
     integration = get_integration(key)
     manifest = IntegrationManifest(key, project)
+    parsed_options = {"workflow_profile": profile}
+    if key in {"droid", "dsh"}:
+        parsed_options["skills_layout"] = "auto"
     integration.setup(
         project, manifest,
-        parsed_options={"workflow_profile": profile}, script_type=script_type,
+        parsed_options=parsed_options, script_type=script_type,
     )
     return integration, manifest
 
@@ -60,12 +63,25 @@ def assert_do_runtime_binding(project: Path, content: str) -> None:
 def test_do_renders_for_every_skill_profile(key, profile, prefix, script_type, tmp_path):
     project = tmp_path / f"{key}-{profile}-{script_type}"
     integration, manifest = install(project, key, profile, script_type)
-    skills_dir = integration.skills_dest(project)
+    skills_dir = integration.skills_dest(project, manifest)
     skill_dir = skills_dir / f"{prefix}-do"
     entry = skill_dir / "SKILL.md"
     content = entry.read_text(encoding="utf-8")
     frontmatter = yaml.safe_load(content.split("---", 2)[1])
     assert frontmatter["description"].startswith(CommandRegistrar.USER_INVOKED_DESCRIPTION_PREFIX)
+    if key in {"droid", "dsh"}:
+        assert skills_dir == project / ".agents" / "skills"
+        assert frontmatter["disable-model-invocation"] is True
+        handoff_skill, handoff = (
+            ("sp-analyze", "/sp-implement")
+            if profile == "classic"
+            else ("spx-specify", "/spx-plan")
+        )
+        handoff_content = (skills_dir / handoff_skill / "SKILL.md").read_text(encoding="utf-8")
+        assert f"`{handoff}`" in handoff_content
+        wrapper_suffix = "ps1" if script_type == "ps" else "sh"
+        wrapper_path = f".specify/integrations/{key}/scripts/update-context.{wrapper_suffix}"
+        assert wrapper_path in manifest.files
     assert entry.relative_to(project).as_posix() in manifest.files
     assert_do_runtime_binding(project, content)
     assert "references/operation-contract.md" in content
@@ -90,6 +106,21 @@ def test_do_renders_for_every_skill_profile(key, profile, prefix, script_type, t
         assert not any(skills_dir.glob("spx-*/SKILL.md"))
     assert not (project / ".specify/do").exists()
     assert not (project / ".specify/playbooks").exists()
+
+
+def test_dsh_shared_install_refuses_native_flat_skill_shadow(tmp_path):
+    integration = get_integration("dsh")
+    manifest = IntegrationManifest("dsh", tmp_path)
+    native_skill = tmp_path / ".dsh" / "skills" / "sp-do.md"
+    native_skill.parent.mkdir(parents=True)
+    content = "---\nname: sp-do\ndescription: Project-owned operation\n---\nExisting workflow.\n"
+    native_skill.write_text(content, encoding="utf-8")
+
+    with pytest.raises(ValueError, match=r"sp-do\.md"):
+        integration.setup(tmp_path, manifest, parsed_options={"skills_layout": "auto"})
+
+    assert native_skill.read_text(encoding="utf-8") == content
+    assert not (tmp_path / ".agents" / "skills").exists()
 
 
 @pytest.mark.parametrize("key", ["qwen", "gemini", "forge", "copilot"])

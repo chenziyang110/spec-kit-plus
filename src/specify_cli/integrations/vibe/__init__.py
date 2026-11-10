@@ -16,6 +16,7 @@ class VibeIntegration(SkillsIntegration):
         "name": "Mistral Vibe",
         "folder": ".vibe/",
         "commands_subdir": "skills",
+        "shared_project_skills": True,
         "install_url": "https://github.com/mistralai/mistral-vibe",
         "requires_cli": True,
     }
@@ -87,7 +88,7 @@ class VibeIntegration(SkillsIntegration):
             **opts,
         )
 
-        skills_dir = self.skills_dest(project_root).resolve()
+        skills_dir = self.skills_dest(project_root, manifest).resolve()
         self.finalize_native_skill_files(created, project_root, manifest, skills_dir)
         return created
 

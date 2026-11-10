@@ -1,6 +1,7 @@
 """Codex CLI integration — skills-based agent.
 
-Codex uses the ``.codex/skills/sp-<name>/SKILL.md`` layout.
+Codex discovers project skills in ``.agents/skills``. The historical Plus
+adapter location is ``.codex/skills``.
 Commands are deprecated; ``--skills`` defaults to ``True``.
 """
 
@@ -25,6 +26,7 @@ class CodexIntegration(SkillsIntegration):
         "name": "Codex CLI",
         "folder": ".codex/",
         "commands_subdir": "skills",
+        "shared_project_skills": True,
         "install_url": "https://github.com/openai/codex",
         "requires_cli": True,
     }

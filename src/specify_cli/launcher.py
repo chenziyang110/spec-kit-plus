@@ -77,6 +77,8 @@ GENERATED_GUIDANCE_ROOTS = (
     ".gemini/hooks",
     ".github/agents",
     ".cursor/skills",
+    ".dsh/skills",
+    ".factory/skills",
     ".qwen/commands",
     ".opencode/command",
     ".windsurf/workflows",

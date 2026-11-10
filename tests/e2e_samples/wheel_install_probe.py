@@ -166,7 +166,7 @@ def run_probe(wheel: Path, runtime: Path, output: Path, expected_revision: str,
             require(relative in core.files, f"helper missing from core manifest: {relative}")
         for profile in profiles:
             prefix = "sp" if profile == "classic" else "spx"
-            relative = f".codex/skills/{prefix}-e2e/SKILL.md"
+            relative = f".agents/skills/{prefix}-e2e/SKILL.md"
             skill = project / relative
             require(skill.is_file() and relative in agent.files, f"missing tracked skill: {relative}")
             if relative in edits:
@@ -180,7 +180,7 @@ def run_probe(wheel: Path, runtime: Path, output: Path, expected_revision: str,
                 reference = skill.parent / "references/scenario-design.md"
                 require(reference.is_file() and reference.relative_to(project).as_posix() in agent.files,
                         "missing tracked Advanced scenario-design reference")
-        skills = project / ".codex/skills"
+        skills = project / ".agents/skills"
         if profiles == {"advanced"}:
             require({p.parent.name for p in skills.glob("sp-*/SKILL.md")} == MAP_COMPANIONS, "Classic profile leakage")
             require(not (skills / "spec-kit-project-cognition-gate").exists(), "Classic passive bundle leaked")
@@ -224,7 +224,7 @@ def run_probe(wheel: Path, runtime: Path, output: Path, expected_revision: str,
             verify(project, {first}, {})
             prefix = "sp" if first == "classic" else "spx"
             edits = {}
-            for relative, note in ((f".codex/skills/{prefix}-e2e/SKILL.md", b"\n<!-- user E2E note -->\n"),
+            for relative, note in ((f".agents/skills/{prefix}-e2e/SKILL.md", b"\n<!-- user E2E note -->\n"),
                                    (".specify/scripts/shared/e2e_scenarios.py", b"\n# user E2E note\n")):
                 path = project / relative
                 edits[relative] = path.read_bytes() + note
@@ -233,7 +233,7 @@ def run_probe(wheel: Path, runtime: Path, output: Path, expected_revision: str,
             verify(project, {first, second}, edits)
             second_prefix = "sp" if second == "classic" else "spx"
             # Remove only an unmodified file in this probe-owned disposable project.
-            missing = project / f".codex/skills/{second_prefix}-e2e/SKILL.md"
+            missing = project / f".agents/skills/{second_prefix}-e2e/SKILL.md"
             missing.unlink()
             # The helper was deliberately edited above. Repair must preserve it
             # and return the documented partial status, without other issues.

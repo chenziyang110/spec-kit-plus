@@ -9,6 +9,7 @@ class TraeIntegration(SkillsIntegration):
         "name": "Trae",
         "folder": ".trae/",
         "commands_subdir": "skills",
+        "shared_project_skills": True,
         "install_url": None,
         "requires_cli": False,
     }

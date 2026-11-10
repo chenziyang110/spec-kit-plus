@@ -24,6 +24,7 @@ import yaml
 from packaging import version as pkg_version
 from packaging.specifiers import SpecifierSet, InvalidSpecifier
 
+from .atomic_io import atomic_write_bytes, read_local_state_bytes, safe_local_state_path
 from .extensions import ExtensionRegistry, normalize_priority
 
 
@@ -530,6 +531,9 @@ class PresetManager:
 
         if not filtered:
             return {}
+        if self._get_skills_dir() == self.project_root / ".agents" / "skills":
+            # The shared skill writer keeps a reversible ownership record.
+            return {}
 
         try:
             from .agents import CommandRegistrar
@@ -541,7 +545,9 @@ class PresetManager:
             filtered, manifest.id, preset_dir, self.project_root
         )
 
-    def _unregister_commands(self, registered_commands: Dict[str, List[str]]) -> None:
+    def _unregister_commands(
+        self, registered_commands: Dict[str, List[str]], pack_id: str,
+    ) -> None:
         """Remove previously registered command files from agent directories.
 
         Args:
@@ -553,7 +559,7 @@ class PresetManager:
             return
 
         registrar = CommandRegistrar()
-        registrar.unregister_commands(registered_commands, self.project_root)
+        registrar.unregister_commands(registered_commands, self.project_root, source_id=pack_id)
 
     def _get_skills_dir(self) -> Optional[Path]:
         """Return the active skills directory for preset skill overrides.
@@ -721,7 +727,10 @@ class PresetManager:
         # preset skills in _register_commands() because their detected agent
         # directory is already the skills directory. This flag is only for
         # command-backed agents that also mirror commands into skills.
-        create_missing_skills = ai_skills_enabled and agent_config.get("extension") != "/SKILL.md"
+        shared = skills_dir == self.project_root / ".agents" / "skills"
+        create_missing_skills = ai_skills_enabled and (
+            shared or agent_config.get("extension") != "/SKILL.md"
+        )
 
         written: List[str] = []
 
@@ -772,6 +781,11 @@ class PresetManager:
 
             for target_skill_name in target_skill_names:
                 skill_subdir = skills_dir / target_skill_name
+                skill_file = skill_subdir / "SKILL.md"
+                if shared and not registrar.may_write_shared_skill(
+                    self.project_root, skill_file, owner=selected_ai,
+                ):
+                    continue
                 if skill_subdir.exists() and not skill_subdir.is_dir():
                     continue
                 skill_subdir.mkdir(parents=True, exist_ok=True)
@@ -790,8 +804,22 @@ class PresetManager:
                     f"{body}\n"
                 )
 
-                skill_file = skill_subdir / "SKILL.md"
-                skill_file.write_text(skill_content, encoding="utf-8")
+                if shared:
+                    updated = skill_content.encode("utf-8")
+                    backup = safe_local_state_path(
+                        preset_dir / ".shared-skill-backups" / target_skill_name,
+                        root=self.project_root,
+                    )
+                    backup.mkdir(parents=True)
+                    if skill_file.is_file():
+                        original = read_local_state_bytes(skill_file, root=self.project_root)
+                        (backup / "original").write_bytes(original)
+                    (backup / "applied.sha256").write_text(
+                        hashlib.sha256(updated).hexdigest(), encoding="ascii",
+                    )
+                    atomic_write_bytes(safe_local_state_path(skill_file, root=self.project_root), updated)
+                else:
+                    skill_file.write_text(skill_content, encoding="utf-8")
                 written.append(target_skill_name)
 
         return written
@@ -827,6 +855,8 @@ class PresetManager:
         extension_restore_index = self._build_extension_skill_restore_index()
 
         for skill_name in skill_names:
+            if Path(skill_name).name != skill_name or skill_name in {"", ".", ".."}:
+                continue
             # Derive command name from skill name (sp-specify -> specify)
             short_name = skill_name
             if short_name.startswith("sp-"):
@@ -840,6 +870,31 @@ class PresetManager:
                 continue
             if not skill_file.is_file():
                 # Only manage directories that contain the expected skill entrypoint.
+                continue
+
+            if skills_dir == self.project_root / ".agents" / "skills":
+                backup = safe_local_state_path(
+                    preset_dir / ".shared-skill-backups" / skill_name, root=self.project_root,
+                )
+                if backup.is_dir():
+                    current = read_local_state_bytes(skill_file, root=self.project_root)
+                    applied = read_local_state_bytes(backup / "applied.sha256", root=self.project_root)
+                    if hashlib.sha256(current).hexdigest().encode("ascii") == applied:
+                        original_path = backup / "original"
+                        original = (
+                            read_local_state_bytes(original_path, root=self.project_root)
+                            if original_path.is_file() else None
+                        )
+                        if original is not None and isinstance(selected_ai, str) and registrar.shared_skill_has_owner(
+                            self.project_root, skill_file, original, selected_ai,
+                        ):
+                            atomic_write_bytes(safe_local_state_path(skill_file, root=self.project_root), original)
+                        else:
+                            skill_file.unlink()
+                            try:
+                                skill_subdir.rmdir()
+                            except OSError:
+                                pass
                 continue
 
             # Try to find the core command template
@@ -975,6 +1030,9 @@ class PresetManager:
 
         manifest_path = source_dir / "preset.yml"
         manifest = PresetManifest(manifest_path)
+        reserved_backup_dir = source_dir / ".shared-skill-backups"
+        if reserved_backup_dir.exists() or reserved_backup_dir.is_symlink():
+            raise PresetValidationError("Preset contains the reserved .shared-skill-backups path")
 
         self.check_compatibility(manifest, speckit_version)
 
@@ -1096,7 +1154,7 @@ class PresetManager:
 
         # Unregister non-skill command files from AI agents.
         if registered_commands:
-            self._unregister_commands(registered_commands)
+            self._unregister_commands(registered_commands, pack_id)
 
         if pack_dir.exists():
             shutil.rmtree(pack_dir)

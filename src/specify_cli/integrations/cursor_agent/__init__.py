@@ -16,6 +16,7 @@ class CursorAgentIntegration(SkillsIntegration):
         "name": "Cursor",
         "folder": ".cursor/",
         "commands_subdir": "skills",
+        "shared_project_skills": True,
         "install_url": None,
         "requires_cli": False,
     }
@@ -125,7 +126,7 @@ class CursorAgentIntegration(SkillsIntegration):
         manifest: IntegrationManifest,
     ) -> list[Path]:
         updated_files: list[Path] = []
-        skills_dir = self.skills_dest(project_root)
+        skills_dir = self.skills_dest(project_root, manifest)
         for stem in ("implement", "review", "debug", "quick"):
             path = skills_dir / f"sp-{stem}" / "SKILL.md"
             updated = self._append_runtime_handbook_compatibility_to_file(
