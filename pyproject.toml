@@ -4,7 +4,7 @@ version = "0.8.8.dev0"
 description = "Specify CLI for Spec Kit Plus. A tool to bootstrap projects for Spec-Driven Development (SDD)."
 requires-python = ">=3.11"
 dependencies = [
-    "anyio>=4.15.1",
+    "anyio>=4.16.0",
     "typer",
     "click>=8.5.0",
     "rich",
