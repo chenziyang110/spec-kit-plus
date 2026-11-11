@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtimegate"
 )
 
 // A persisted intent is the recovery owner. Receipt compatibility must not
@@ -145,6 +146,9 @@ func mutationCognitionRecoveryArgv(scopeDir, workflow string, changedPaths []str
 		} else if intent != nil {
 			return closeoutRecoveryArgv(paths, "inspect", intent.ID, "")
 		}
+		if agreement, exists := runtimegate.CheckExisting(paths); exists && agreement.CauseCode == runtimegate.CauseGraphStoreIncompatible {
+			return []string{"specify-runtime", "cognition", "archive-incompatible-store", "--inspect", "--format", "json"}
+		}
 	}
 	canonical, canonicalErr := normalizeMutationWorkflowID(workflow)
 	if canonicalErr != nil {
@@ -173,6 +177,9 @@ func mutationCognitionRecoveryText(scopeDir, workflow string, changedPaths []str
 	}
 	if len(argv) > 2 && argv[2] == "closeout-plan" {
 		return strings.Join(quoted, " ") + "; supply one --changed-path per exact workflow-owned path, complete truthful agent fields, and execute returned apply_argv (which owns the receipt)"
+	}
+	if len(argv) > 2 && argv[2] == "archive-incompatible-store" {
+		return strings.Join(quoted, " ") + ". Run from the project root to inspect the incompatible graph without mutation. Review the returned digest-bound archive_argv before archival, rebuild with the current runtime, and resume this workflow's exact closeout. Quick may use its explicit mark-dirty fallback with a sealed current source binding while graph repair remains outstanding."
 	}
 	return strings.Join(quoted, " ") + "; consume exact inspect repair_argv/replay_argv; keep the workflow active until its own receipt allows close"
 }

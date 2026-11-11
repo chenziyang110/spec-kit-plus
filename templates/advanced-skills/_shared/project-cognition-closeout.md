@@ -24,8 +24,8 @@ A rename owns both its old and new path; pass and preserve both endpoints in
 `boundary.workflow_owned_paths`, and reject a rename when either endpoint is
 outside that boundary. These paths are the mutation closeout scope; unrelated
 dirty, untracked, or committed-since-baseline repository paths must not enter
-`changed_paths`. If no workflow-owned path can be named, do not broad scan to
-guess it; use dirty fallback with an explicit reason.
+`changed_paths`. If no workflow-owned path can be named, preserve the scope
+blocker and recover the native owner before closeout.
 
 For source-changing work other than Do, next expand
 `{{specify-subcmd:specify-runtime api show cognition.closeout.binding.v1 --format json}}`
@@ -55,6 +55,14 @@ Do supplies that existing proof to its native knowledge closeout instead of the
 generic sealed binding and `check` requirement.
 Only E2E retained test-asset source changes need this binding; read-only
 runs, traces and disposable outputs do not invent source mutation.
+When Quick's planner is blocked by a missing or incompatible cognition store,
+negotiate `cognition.closeout.bound-fallback.v1`. Native binding `begin` and
+`seal` can still bind the current joined Quick Work, accepted outputs and
+source. Begin with canonical `workflow=sp-quick`, the exact quick workspace
+and semantic input `{"work_id":"<current joined native Quick Work>"}`, run
+fresh final checks, then seal the returned binding ID. Recover a blocked or
+interrupted Work through its owner first. This bounded recovery applies to
+Quick; other workflows retain their owning recovery routes.
 After the existing verification and sealing when required, fill only the returned
 agent-owned evidence fields, then execute structured `apply_argv`; `update_argv`
 is a low-level compatibility/debug primitive, not the workflow closeout path.
@@ -193,16 +201,23 @@ do not rebuild merely because verification was malformed. When no safe action
 is available, preserve the exact blocker, required evidence, and resume action.
 
 Successful shared apply stamps the hard gate receipt itself before terminal
-close. Do not stamp a second receipt. Only `mark-dirty` fallback uses the
-standalone compatibility command:
+close. Do not stamp a second receipt. Only a runtime-authorized Quick
+`mark-dirty` fallback uses this standalone command:
 
 ```text
-{{specify-subcmd:specify-runtime cognition mutation-receipt --workflow <canonical-sp-*> --feature-dir <scope> --result-state mark-dirty --reason "<text>" --format json}}
+{{specify-subcmd:specify-runtime cognition mutation-receipt --workflow sp-quick --scope-dir <quick-workspace> --result-state mark-dirty --binding-id <sealed-current-binding-id> --reason "<text>" --format json}}
 ```
 
 Runtime blocks `implement closeout` and implement/review `workflow complete-stage`
 without an allowed receipt. Quick uses the same receipt under its workspace
-(via shared apply, or `quick cognition-closeout` only for dirty fallback).
+(via shared apply, or
+`quick cognition-closeout <id> --result-state mark-dirty --binding-id <sealed-current-binding-id> --reason "<text>" --format json`
+for the authorized bound fallback). Runtime requires a missing/incompatible
+graph, no pending intent, unchanged source/dependency bytes, complete accepted
+outputs and a current sealed native binding with fresh passing observations.
+Unbound legacy receipts remain audit-only for proof-required closeout.
+Preserve graph debt and the returned guarded archive/repair action in the
+result. A bound fallback does not archive the store or publish freshness.
 Fast/debug use the same shared apply before claiming completion even when they
 lack a formal stage machine.
 

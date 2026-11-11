@@ -1914,6 +1914,7 @@ func defaultCapabilities() []string {
 		"quick.allow-inline",
 		"quick.close",
 		"quick.cognition-closeout",
+		"cognition.closeout.bound-fallback.v1",
 		"quick.item-accept",
 		"quick.item-start",
 		"quick.item-status",

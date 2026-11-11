@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/store"
 )
 
 const quickCognitionCloseoutFileName = "cognition-closeout.json"
@@ -23,8 +26,14 @@ var quickCognitionCloseoutAllowedStates = map[string]bool{
 
 type quickCognitionCloseoutReceipt = mutationCognitionReceipt
 
-func (service quickService) recordCognitionCloseout(workspacePath, resultState, reason, updateID string, evidence []string) (map[string]any, error) {
-	payload, err := recordMutationCognitionReceipt(workspacePath, "sp-quick", filepath.Base(workspacePath), resultState, reason, updateID, evidence)
+func (service quickService) recordCognitionCloseout(workspacePath, resultState, reason, updateID string, evidence []string, bindingID string) (map[string]any, error) {
+	var payload map[string]any
+	var err error
+	if bindingID != "" {
+		payload, err = recordBoundFallbackCognitionReceipt(workspacePath, "sp-quick", resultState, reason, updateID, evidence, bindingID)
+	} else {
+		payload, err = recordMutationCognitionReceipt(workspacePath, "sp-quick", filepath.Base(workspacePath), resultState, reason, updateID, evidence)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -33,8 +42,95 @@ func (service quickService) recordCognitionCloseout(workspacePath, resultState, 
 		return nil, err
 	}
 	payload["status_synced"] = true
-	payload["next_action"] = "Run specify-runtime quick close <id> resolved after validation and SUMMARY are ready."
+	gate := service.cognitionCloseoutStatus(workspacePath)
+	payload["allowed_close"] = gate["allowed_close"]
+	if blockedReason, ok := gate["blocked_reason"]; ok {
+		payload["blocked_reason"] = blockedReason
+	}
+	if payload["allowed_close"] == true {
+		payload["next_action"] = "Run specify-runtime quick close <id> resolved after validation and SUMMARY are ready."
+	}
 	return payload, nil
+}
+
+func recordBoundFallbackCognitionReceipt(scopeDir, workflow, resultState, reason, updateID string, evidence []string, bindingID string) (map[string]any, error) {
+	canonical, err := normalizeMutationWorkflowID(workflow)
+	if err != nil {
+		return nil, err
+	}
+	if canonical != "sp-quick" || normalizeMutationCognitionState(resultState) != "mark-dirty" || strings.TrimSpace(updateID) != "" {
+		return nil, fmt.Errorf("--binding-id fallback requires workflow sp-quick, result-state mark-dirty and no update-id")
+	}
+	if strings.TrimSpace(reason) == "" {
+		return nil, fmt.Errorf("bound mark-dirty fallback requires an explicit --reason")
+	}
+	paths, err := rt.ResolvePaths(scopeDir)
+	if err != nil {
+		return nil, err
+	}
+	scope, err := filepath.Rel(paths.Root, scopeDir)
+	if err != nil {
+		return nil, err
+	}
+	scope = filepath.ToSlash(scope)
+	release, err := rt.AcquireUpdateLock(paths)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	intent, err := pendingMutationCloseoutIntent(scopeDir, canonical)
+	if err != nil {
+		return nil, fmt.Errorf("cannot establish absence of a durable closeout intent: %w", err)
+	}
+	if intent != nil {
+		return nil, fmt.Errorf("bound fallback cannot replace durable intent %s; %s", intent.ID, mutationCognitionRecoveryText(scopeDir, canonical, nil))
+	}
+	proof, err := requireStrongCloseoutBinding(paths.Root, canonical, scope, bindingID, "")
+	if err != nil {
+		return nil, err
+	}
+	if proof.ItemID != "" {
+		return nil, fmt.Errorf("bound fallback requires the joined Quick Work owner, not one item's binding")
+	}
+	debt, err := missingOrIncompatibleCognitionDebt(paths)
+	if err != nil {
+		return nil, err
+	}
+	receipt := mutationCognitionReceipt{
+		Version: mutationCognitionReceiptVersion, Workflow: canonical, Scope: scope,
+		ResultState: "mark-dirty", Reason: strings.TrimSpace(reason), Evidence: evidence,
+		ChangedPaths: normalizedCloseoutPaths(proof.OwnedDelta), RecordedAt: nowUTCString(),
+		StrongBinding: proof, GraphDebt: debt,
+	}
+	return publishMutationCognitionReceipt(scopeDir, receipt)
+}
+
+func missingOrIncompatibleCognitionDebt(paths rt.Paths) (*mutationCognitionGraphDebt, error) {
+	debt := &mutationCognitionGraphDebt{
+		CauseCode: "missing_graph_store", GraphStorePath: ".specify/project-cognition/project-cognition.db",
+		RequiredSchema: store.SchemaVersion, RecoveryAction: "run_map_scan_build",
+		RecoveryArgv: []string{"specify-runtime", "cognition", "status", "--format", "json"},
+	}
+	info, err := os.Lstat(paths.DatabasePath)
+	if os.IsNotExist(err) {
+		return debt, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("bound fallback requires a regular graph store or a missing store")
+	}
+	version, _, err := store.ExistingDatabaseSchemaVersion(paths)
+	if err != nil {
+		return nil, fmt.Errorf("cannot verify graph incompatibility: %w", err)
+	}
+	if version == store.SchemaVersion {
+		return nil, fmt.Errorf("bound fallback requires a missing or incompatible graph schema; use the shared cognition closeout apply for the current store")
+	}
+	debt.CauseCode, debt.SchemaVersion, debt.RecoveryAction = "graph_store_incompatible", version, "inspect_incompatible_store"
+	debt.RecoveryArgv = []string{"specify-runtime", "cognition", "archive-incompatible-store", "--inspect", "--format", "json"}
+	return debt, nil
 }
 
 func (service quickService) loadCognitionCloseout(workspacePath string) (*quickCognitionCloseoutReceipt, error) {
@@ -76,9 +172,15 @@ func (service quickService) cognitionCloseoutStatus(workspacePath string) map[st
 		out["result_state"] = receipt.ResultState
 		out["reason"] = receipt.Reason
 		out["receipt_path"] = filepath.ToSlash(filepath.Join(workspacePath, quickCognitionCloseoutFileName))
+		if receipt.GraphDebt != nil {
+			out["graph_debt"] = receipt.GraphDebt
+		}
 		allowed, reason := mutationCognitionReceiptGateReason(workspacePath, receipt)
 		if needs && receipt.StrongBinding == nil {
 			allowed, reason = false, "legacy_receipt_missing_strong_binding"
+		}
+		if needs && receipt.StrongBinding != nil && receipt.StrongBinding.ItemID != "" {
+			allowed, reason = false, "terminal_scope_requires_joined_binding"
 		}
 		out["allowed_close"] = allowed
 		if reason != "" {

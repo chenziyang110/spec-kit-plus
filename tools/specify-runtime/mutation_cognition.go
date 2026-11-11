@@ -33,20 +33,32 @@ var mutationCognitionFeatureStages = map[string]string{
 }
 
 type mutationCognitionReceipt struct {
-	Version       int                 `json:"version"`
-	Workflow      string              `json:"workflow"`
-	Scope         string              `json:"scope,omitempty"` // feature rel, quick workspace, or project
-	ResultState   string              `json:"result_state"`
-	Reason        string              `json:"reason,omitempty"`
-	Evidence      []string            `json:"evidence,omitempty"`
-	ChangedPaths  []string            `json:"changed_paths,omitempty"`
-	IntentID      string              `json:"intent_id,omitempty"`
-	IntentRef     string              `json:"intent_ref,omitempty"`
-	IntentDigest  string              `json:"intent_digest,omitempty"`
-	UpdateID      string              `json:"update_id,omitempty"`
-	RecordedAt    string              `json:"recorded_at"`
-	DoBinding     *DoCognitionBinding `json:"do_binding,omitempty"`
-	StrongBinding *closeoutBinding    `json:"strong_binding,omitempty"`
+	Version       int                         `json:"version"`
+	Workflow      string                      `json:"workflow"`
+	Scope         string                      `json:"scope,omitempty"` // feature rel, quick workspace, or project
+	ResultState   string                      `json:"result_state"`
+	Reason        string                      `json:"reason,omitempty"`
+	Evidence      []string                    `json:"evidence,omitempty"`
+	ChangedPaths  []string                    `json:"changed_paths,omitempty"`
+	IntentID      string                      `json:"intent_id,omitempty"`
+	IntentRef     string                      `json:"intent_ref,omitempty"`
+	IntentDigest  string                      `json:"intent_digest,omitempty"`
+	UpdateID      string                      `json:"update_id,omitempty"`
+	RecordedAt    string                      `json:"recorded_at"`
+	DoBinding     *DoCognitionBinding         `json:"do_binding,omitempty"`
+	StrongBinding *closeoutBinding            `json:"strong_binding,omitempty"`
+	GraphDebt     *mutationCognitionGraphDebt `json:"graph_debt,omitempty"`
+}
+
+// A bound fallback keeps missing or incompatible graph state visible while
+// native accepted outputs and fresh source verification satisfy workflow close.
+type mutationCognitionGraphDebt struct {
+	CauseCode      string   `json:"cause_code"`
+	GraphStorePath string   `json:"graph_store_path"`
+	SchemaVersion  int      `json:"schema_version,omitempty"`
+	RequiredSchema int      `json:"required_schema"`
+	RecoveryAction string   `json:"recovery_action"`
+	RecoveryArgv   []string `json:"recovery_argv"`
 }
 
 func normalizeMutationCognitionState(raw string) string {
@@ -204,15 +216,19 @@ func recordMutationCognitionReceiptBound(scopeDir, workflow, scopeLabel, resultS
 		}
 		receipt.StrongBinding = intent.StrongBinding
 	}
+	return publishMutationCognitionReceipt(scopeDir, receipt)
+}
+
+func publishMutationCognitionReceipt(scopeDir string, receipt mutationCognitionReceipt) (map[string]any, error) {
 	path, err := writeMutationCognitionReceipt(scopeDir, receipt)
 	if err != nil {
 		return nil, err
 	}
 	payload := map[string]any{
 		"receipt_path":  filepath.ToSlash(path),
-		"workflow":      canonical,
-		"scope":         scopeLabel,
-		"result_state":  state,
+		"workflow":      receipt.Workflow,
+		"scope":         receipt.Scope,
+		"result_state":  receipt.ResultState,
 		"reason":        receipt.Reason,
 		"evidence":      receipt.Evidence,
 		"changed_paths": receipt.ChangedPaths,
@@ -225,10 +241,13 @@ func recordMutationCognitionReceiptBound(scopeDir, workflow, scopeLabel, resultS
 		"strong_proof":  receipt.StrongBinding != nil || receipt.Workflow == "sp-do" && receipt.DoBinding != nil,
 		"policy":        "Every source-changing mutation workflow must refresh project cognition so a greenfield project continuously gains path_index, routes, and claims. Prefer result_state=ready after update+validate-build+complete-refresh; use mark-dirty/no_op only with an explicit reason.",
 	}
+	if receipt.GraphDebt != nil {
+		payload["graph_debt"] = receipt.GraphDebt
+	}
 	if allowed, reason := mutationCognitionReceiptGateReason(scopeDir, &receipt); !allowed && reason != "" {
 		payload["blocked_reason"] = reason
 	}
-	if state == "mark-dirty" {
+	if receipt.ResultState == "mark-dirty" {
 		payload["warning"] = "mark-dirty is a temporary unclean closeout; the next source-changing workflow must attempt a real cognition update so the graph keeps growing."
 	}
 	return payload, nil
@@ -256,6 +275,9 @@ func mutationCognitionStatus(scopeDir string) map[string]any {
 	out["result_state"] = receipt.ResultState
 	out["reason"] = receipt.Reason
 	out["workflow"] = receipt.Workflow
+	if receipt.GraphDebt != nil {
+		out["graph_debt"] = receipt.GraphDebt
+	}
 	out["receipt_path"] = filepath.ToSlash(mutationCognitionReceiptPath(scopeDir))
 	allowed, reason := mutationCognitionReceiptGateReason(scopeDir, receipt)
 	out["allowed_close"] = allowed
@@ -496,7 +518,13 @@ func runMutationCognitionReceiptCLI(args []string, stdout io.Writer) int {
 	if rel, err := filepath.Rel(absRoot, absScope); err == nil {
 		relScope = filepath.ToSlash(rel)
 	}
-	payload, err := recordMutationCognitionReceipt(absScope, workflow, relScope, resultState, reason, updateID, evidence)
+	var payload map[string]any
+	bindingID := strings.TrimSpace(optionValue(args, "--binding-id", ""))
+	if bindingID != "" {
+		payload, err = recordBoundFallbackCognitionReceipt(absScope, workflow, resultState, reason, updateID, evidence, bindingID)
+	} else {
+		payload, err = recordMutationCognitionReceipt(absScope, workflow, relScope, resultState, reason, updateID, evidence)
+	}
 	if err != nil {
 		return writeEnvelope(stdout, scriptDomainError("cognition", err))
 	}

@@ -18,7 +18,7 @@ knowledge closeout with its existing proof, without repeating completed work:
 {{specify-subcmd:specify-runtime cognition closeout-plan --workflow {{project-cognition-workflow}} --scope-dir <feature-or-scope> --scope-mode explicit --format json}}
 ```
 
-Before executing that command, append one `--changed-path <repo-relative-path>` flag for each workflow-owned path changed by this workflow. A rename owns both the old path and the new path: pass both endpoints and preserve both in `boundary.workflow_owned_paths`; a rename with either endpoint outside that boundary is invalid. These explicit paths are the mutation closeout scope; unrelated dirty, untracked, or committed-since-baseline repository paths must not be allowed to enter `changed_paths` for this workflow. If no workflow-owned path can be named, do not broad-scan to guess it; use dirty fallback with an explicit reason that the owned scope could not be identified.
+Before executing that command, append one `--changed-path <repo-relative-path>` flag for each workflow-owned path changed by this workflow. A rename owns both the old path and the new path: pass both endpoints and preserve both in `boundary.workflow_owned_paths`; a rename with either endpoint outside that boundary is invalid. These explicit paths are the mutation closeout scope; unrelated dirty, untracked, or committed-since-baseline repository paths must not be allowed to enter `changed_paths` for this workflow. If no workflow-owned path can be named, preserve the scope blocker and recover the native owner before closeout.
 
 When `DELTA_SESSION_ID` exists, pass it into the planner:
 
@@ -41,6 +41,15 @@ from the current owner; runtime derives work/attempt identity, source and depend
 bytes, owned delta, and canonical accepted-output versions. Do not invent binding
 hashes, binding timestamps, generated IDs, or an accepted-output list. Validation
 observation times come from the real tool result, not fabricated binding metadata.
+
+When Quick's planner is blocked by a missing or incompatible cognition store,
+require `{{specify-subcmd:specify-runtime api ensure --capabilities cognition.closeout.bound-fallback.v1 --format json}}`.
+Quick binding `begin` and `seal` can still bind accepted outputs and current
+source without a compatible graph. Begin with `workflow=sp-quick`, the exact
+quick workspace and `{"work_id":"<current joined native Quick Work>"}` as the
+semantic input. Recover a blocked or interrupted native Work through its owner
+before establishing this proof. Other workflows keep their owning recovery
+route.
 
 Run the required verification against that basis, then use the returned binding
 ID with the contract's native `seal` route and truthful validation observations.
@@ -198,23 +207,37 @@ predecessor.
 Never run `update`, `validate-build`, `complete-refresh`, or `mutation-receipt` individually as a substitute for `closeout apply`. The runtime must not run `complete-refresh` after a scope-level `partial_refresh`, `needs_rebuild`, `blocked`, or legacy `recorded`; it preserves the truthful state and returned recovery action. A failed, blocked, stale, or non-`query_ready` validate-build result also must not run `complete-refresh`.
 
 Dirty fallback command shape: `{{specify-subcmd:specify-runtime cognition mark-dirty --reason "<reason>" --format json}}`.
-Use `{{specify-subcmd:specify-runtime cognition mark-dirty --reason "workflow-closeout-failed" --format json}}` only when no trustworthy mutation intent can be formed: the planner/runtime is unavailable, workflow-owned scope is unknown, or verification/workflow completion is untrustworthy. A persisted replay intent is not a dirty-fallback case.
-Dirty only when inline update cannot complete and no trustworthy mutation intent exists.
+That graph-maintenance command records debt when its runtime permits it.
+Terminal mutation closeout additionally requires current source-bound proof.
+Only when no trustworthy intent can be formed because the graph is missing or
+incompatible may Quick request the bound `mark-dirty` fallback. Require
+`cognition.closeout.bound-fallback.v1`, a current sealed native Quick binding,
+complete accepted outputs, unchanged source/dependency bytes and fresh passing
+verification. Runtime verifies the graph failure and absence of a pending
+intent. Otherwise preserve the blocker and follow its recovery action.
+An existing intent retains its inspect/repair/replay route. Runtime
+unavailability, unknown owned scope or untrustworthy verification cannot
+produce a closeable fallback.
 
 Greenfield / empty-graph minimum: when the baseline is `greenfield_empty` or compass returns no adoptable paths, agents must still record a terminal cognition outcome (`no_op` or `mark-dirty` with reason). Skipping because “there is no graph to update” is not compliant.
 
 ### Durable mutation receipt (all source-changing workflows)
 
-Successful `closeout apply` records the durable receipt itself **before** any terminal close (`quick close … resolved`, `implement closeout`, `workflow complete-stage` for implement/review, or claiming fast/debug complete). Do not stamp a second receipt. Only the `mark-dirty` fallback uses the standalone compatibility command:
+Successful `closeout apply` records the durable receipt itself **before** any terminal close (`quick close … resolved`, `implement closeout`, `workflow complete-stage` for implement/review, or claiming fast/debug complete). Do not stamp a second receipt. The runtime-authorized Quick bound `mark-dirty` fallback uses:
 
 ```text
-{{specify-subcmd:specify-runtime cognition mutation-receipt --workflow {{project-cognition-workflow}} --feature-dir <feature-or-scope> --result-state mark-dirty --reason "<text>" --format json}}
+{{specify-subcmd:specify-runtime cognition mutation-receipt --workflow sp-quick --scope-dir <quick-workspace> --result-state mark-dirty --binding-id <sealed-current-binding-id> --reason "<text>" --format json}}
 ```
 
 - Feature workflows obtain `<feature-dir>/cognition-closeout.json` only through
   the cognition/mutation-receipt runtime owners (never hand-authored).
 - Quick may use the same runtime-owned file under the quick workspace, or
-  `quick cognition-closeout` (wrapper).
+  `quick cognition-closeout <id> --result-state mark-dirty --binding-id <sealed-current-binding-id> --reason "<text>" --format json`.
+- A standalone receipt without a current strong binding remains audit evidence
+  for proof-required workflows. Confirm the owning workflow's
+  `allowed_close=true` before terminal close. A bound Quick fallback preserves
+  visible graph debt and its guarded archive/repair action. It does not archive
+  the store or publish graph freshness.
 - Runtime **blocks** implement closeout and implement/review `complete-stage` without an allowed receipt.
 - Product goal: a greenfield project’s project-cognition graph **keeps growing** with every real code change. Prefer `ready` after shared apply; `scope_ready` is valid only when current paths succeeded and unrelated global debt remains. Use `mark-dirty`/`no_op` only with an explicit reason; treat repeated dirty-only closeouts as a process defect to repair on the next mutation.
 

@@ -370,6 +370,23 @@ func statusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.P
 		fmt.Fprintf(stderr, "specify-runtime cognition: %v\n", err)
 		return 1
 	}
+	if agreement, exists := runtimegate.CheckExisting(paths); exists && agreement.Status != "ok" {
+		payload := runtimegate.BlockedPayload(paths, agreement)
+		if agreement.CauseCode == runtimegate.CauseGraphStoreIncompatible {
+			payload["recovery_action"] = "inspect_incompatible_store"
+			payload["recommended_next_action"] = "inspect_incompatible_store"
+			payload["next_argv"] = []string{"specify-runtime", "cognition", "archive-incompatible-store", "--inspect", "--format", "json"}
+		}
+		if *format != "json" {
+			fmt.Fprintf(stdout, "blocked %s: %s\n", agreement.Readiness, strings.Join(agreement.Errors, "; "))
+			fmt.Fprintf(stdout, "recovery: %v\n", payload["recommended_next_action"])
+			if argv, ok := payload["next_argv"].([]string); ok {
+				fmt.Fprintln(stdout, strings.Join(argv, " "))
+			}
+			return exitCodeBlocked
+		}
+		return writeBlockedJSON(stdout, payload)
+	}
 	if *format != "json" {
 		fmt.Fprintf(stdout, "%s %s\n", status.Freshness, status.Readiness)
 		return 0

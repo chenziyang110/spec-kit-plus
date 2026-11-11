@@ -58,6 +58,10 @@ def test_r1_installed_profiles_share_order_and_preserve_map_companions(
     assert "An existing durable intent requires returned inspect/repair/replay" in advanced_quick
     assert "For an update failure only" not in advanced_quick
     assert "do not stamp a second receipt" in advanced_quick
+    for content in (quick, quick_ref, advanced_quick):
+        assert "cognition.closeout.bound-fallback.v1" in content
+        assert "--result-state mark-dirty --binding-id <sealed-current-binding-id>" in content
+        assert "unbound legacy receipts remain audit-only" in content.lower()
     for content in (quick, quick_ref, implement_ref, implement, advanced_quick):
         assert "cognition.closeout.recovery.v1" in content
 

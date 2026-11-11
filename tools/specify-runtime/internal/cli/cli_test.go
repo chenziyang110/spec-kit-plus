@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -442,6 +443,109 @@ func TestStatusReturnsUnsupportedLegacyJSON(t *testing.T) {
 	}
 	if payload["error_code"] != "unsupported_legacy_runtime" {
 		t.Fatalf("payload = %#v", payload)
+	}
+}
+
+func TestStatusRejectsLegacyGraphBehindFreshMetadata(t *testing.T) {
+	root := initEmptyCLIRuntime(t)
+	paths := cliRuntimePaths(root)
+	db, err := sql.Open("sqlite", paths.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(context.Background(), `UPDATE metadata SET value_json = '2' WHERE key = 'schema_version'`); err != nil {
+		_ = db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	statusBefore, err := os.ReadFile(paths.StatusPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	databaseBefore, err := os.ReadFile(paths.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, command := range []string{"status", "check", "doctor"} {
+		for _, format := range []string{"json", "text"} {
+			t.Run(command+"/"+format, func(t *testing.T) {
+				var stdout, stderr bytes.Buffer
+				code := Run([]string{command, "--format", format}, &stdout, &stderr, "test")
+				if code != exitCodeBlocked {
+					t.Fatalf("code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+				}
+				if format == "text" {
+					if !strings.Contains(stdout.String(), "schema_version 2 is unsupported") ||
+						!strings.Contains(stdout.String(), "archive-incompatible-store --inspect") ||
+						strings.Contains(stdout.String(), "fresh query_ready") {
+						t.Fatalf("unexpected status text: %s", stdout.String())
+					}
+					return
+				}
+				var payload map[string]any
+				if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+					t.Fatal(err)
+				}
+				if payload["status"] != "blocked" || payload["readiness"] == "query_ready" ||
+					payload["cause_code"] != "graph_store_incompatible" ||
+					payload["recommended_next_action"] != "inspect_incompatible_store" {
+					t.Fatalf("legacy graph reported as usable: %#v", payload)
+				}
+				want := []string{"specify-runtime", "cognition", "archive-incompatible-store", "--inspect", "--format", "json"}
+				if !reflect.DeepEqual(jsonAnySliceStrings(payload["next_argv"].([]any)), want) {
+					t.Fatalf("next_argv=%#v", payload["next_argv"])
+				}
+			})
+		}
+	}
+	statusAfter, err := os.ReadFile(paths.StatusPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	databaseAfter, err := os.ReadFile(paths.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(statusBefore, statusAfter) || !bytes.Equal(databaseBefore, databaseAfter) {
+		t.Fatal("status inspection changed the graph or status metadata")
+	}
+}
+
+func TestStatusPreservesSupportedAndAbsentRuntimeReadiness(t *testing.T) {
+	for _, supported := range []bool{false, true} {
+		t.Run(fmt.Sprint(supported), func(t *testing.T) {
+			root := t.TempDir()
+			if supported {
+				root = initEmptyCLIRuntime(t)
+			} else {
+				if err := os.MkdirAll(filepath.Join(root, ".specify"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				old, _ := os.Getwd()
+				if err := os.Chdir(root); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = os.Chdir(old) })
+			}
+			var stdout, stderr bytes.Buffer
+			if code := Run([]string{"status", "--format", "json"}, &stdout, &stderr, "test"); code != 0 {
+				t.Fatalf("code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			want := "needs_rebuild"
+			if supported {
+				want = "query_ready"
+			}
+			if payload["readiness"] != want {
+				t.Fatalf("readiness=%v, want %s", payload["readiness"], want)
+			}
+		})
 	}
 }
 

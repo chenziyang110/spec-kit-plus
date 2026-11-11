@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"os"
 	"path/filepath"
@@ -13,6 +14,60 @@ import (
 	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/store"
 )
+
+func TestMutationCloseoutRecoveryInspectsIncompatibleGraphWithoutMutation(t *testing.T) {
+	project, paths, scope := seedCloseoutApplyRuntime(t)
+	absolute := filepath.Join(project, filepath.FromSlash(scope))
+	intent, _, _, err := ensureCloseoutIntent(paths, "sp-quick", scope, "legacy-recovery", closeoutApplyPayloadJSON(t, true), "", "", []string{"src/app.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", paths.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("UPDATE metadata SET value_json = '2' WHERE key = 'schema_version'"); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(paths.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if argv := mutationCognitionRecoveryArgv(absolute, "sp-quick", []string{"src/app.go"}); !reflect.DeepEqual(argv, closeoutRecoveryArgv(paths, "inspect", intent.ID, "")) {
+		t.Fatalf("incompatible graph bypassed its pending intent: %#v", argv)
+	}
+	if err := os.Remove(closeoutIntentPath(paths, intent.ID)); err != nil {
+		t.Fatal(err)
+	}
+	argv := mutationCognitionRecoveryArgv(absolute, "sp-quick", []string{"src/app.go"})
+	want := []string{"specify-runtime", "cognition", "archive-incompatible-store", "--inspect", "--format", "json"}
+	if !reflect.DeepEqual(argv, want) {
+		t.Fatalf("incompatible graph retries the blocked planner: %#v", argv)
+	}
+	if text := mutationCognitionRecoveryText(absolute, "sp-quick", nil); !strings.Contains(text, "--inspect") || strings.Contains(text, "consume exact inspect repair_argv") {
+		t.Fatalf("wrong incompatible graph recovery: %s", text)
+	}
+	previousDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(project); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(previousDir) })
+	var stdout, stderr bytes.Buffer
+	if code := Run(argv[1:], &stdout, &stderr, "legacy-recovery"); code != 0 || !strings.Contains(stdout.String(), "\"status\":\"inspected\"") {
+		t.Fatalf("returned recovery is not executable: code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	after, err := os.ReadFile(paths.DatabasePath)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("recovery lookup changed the incompatible database: %v", err)
+	}
+}
 
 func TestR1RetainedCommittedIntentCannotHideNewPendingIntent(t *testing.T) {
 	project, paths, scope := seedCloseoutApplyRuntime(t)
