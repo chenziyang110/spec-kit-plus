@@ -33,21 +33,22 @@ var mutationCognitionFeatureStages = map[string]string{
 }
 
 type mutationCognitionReceipt struct {
-	Version       int                         `json:"version"`
-	Workflow      string                      `json:"workflow"`
-	Scope         string                      `json:"scope,omitempty"` // feature rel, quick workspace, or project
-	ResultState   string                      `json:"result_state"`
-	Reason        string                      `json:"reason,omitempty"`
-	Evidence      []string                    `json:"evidence,omitempty"`
-	ChangedPaths  []string                    `json:"changed_paths,omitempty"`
-	IntentID      string                      `json:"intent_id,omitempty"`
-	IntentRef     string                      `json:"intent_ref,omitempty"`
-	IntentDigest  string                      `json:"intent_digest,omitempty"`
-	UpdateID      string                      `json:"update_id,omitempty"`
-	RecordedAt    string                      `json:"recorded_at"`
-	DoBinding     *DoCognitionBinding         `json:"do_binding,omitempty"`
-	StrongBinding *closeoutBinding            `json:"strong_binding,omitempty"`
-	GraphDebt     *mutationCognitionGraphDebt `json:"graph_debt,omitempty"`
+	Version            int                         `json:"version"`
+	Workflow           string                      `json:"workflow"`
+	Scope              string                      `json:"scope,omitempty"` // feature rel, quick workspace, or project
+	ResultState        string                      `json:"result_state"`
+	Reason             string                      `json:"reason,omitempty"`
+	Evidence           []string                    `json:"evidence,omitempty"`
+	ChangedPaths       []string                    `json:"changed_paths,omitempty"`
+	IntentID           string                      `json:"intent_id,omitempty"`
+	IntentRef          string                      `json:"intent_ref,omitempty"`
+	IntentDigest       string                      `json:"intent_digest,omitempty"`
+	UpdateID           string                      `json:"update_id,omitempty"`
+	RecordedAt         string                      `json:"recorded_at"`
+	DoBinding          *DoCognitionBinding         `json:"do_binding,omitempty"`
+	StrongBinding      *closeoutBinding            `json:"strong_binding,omitempty"`
+	GraphDebt          *mutationCognitionGraphDebt `json:"graph_debt,omitempty"`
+	QuickJoinedBinding *quickJoinedCloseoutBinding `json:"quick_joined_binding,omitempty"`
 }
 
 // A bound fallback keeps missing or incompatible graph state visible while

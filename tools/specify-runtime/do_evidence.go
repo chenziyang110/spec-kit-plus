@@ -323,20 +323,9 @@ func doApplyRecordEvent(root string, session DoSession, event doRecordEvent, pre
 }
 
 func doCheckEvidence(root string, check PlaybookCheck, results []DoResultRef, verifySnapshot bool) error {
-	if check.Kind == "exit_code" {
-		return nil
-	}
-	var selected *DoResultRef
-	for i := range results {
-		if results[i].Path == check.ResultPath && results[i].Kind == check.Kind {
-			if selected != nil {
-				return fmt.Errorf("duplicate result for check %s", check.ID)
-			}
-			selected = &results[i]
-		}
-	}
-	if selected == nil {
-		return fmt.Errorf("required %s evidence for check %s is missing", check.Kind, check.ID)
+	selected, err := doCheckResult(check, results)
+	if err != nil || selected == nil {
+		return err
 	}
 	if check.Kind == "file" {
 		if verifySnapshot {
@@ -356,9 +345,30 @@ func doCheckEvidence(root string, check PlaybookCheck, results []DoResultRef, ve
 	if doBytesDigest(raw) != selected.SHA256 {
 		return fmt.Errorf("check evidence digest changed")
 	}
+	return doCheckAssertion(check, raw)
+}
+
+func doCheckResult(check PlaybookCheck, results []DoResultRef) (*DoResultRef, error) {
+	if check.Kind == "exit_code" {
+		return nil, nil
+	}
+	var selected *DoResultRef
+	for i := range results {
+		if results[i].Path == check.ResultPath && results[i].Kind == check.Kind {
+			if selected != nil {
+				return nil, fmt.Errorf("duplicate result for check %s", check.ID)
+			}
+			selected = &results[i]
+		}
+	}
+	if selected == nil {
+		return nil, fmt.Errorf("required %s evidence for check %s is missing", check.Kind, check.ID)
+	}
+	return selected, nil
+}
+
+func doCheckAssertion(check PlaybookCheck, raw []byte) error {
 	switch check.Kind {
-	case "file":
-		return nil
 	case "json":
 		if err := playbookRejectDuplicateKeys(raw); err != nil {
 			return fmt.Errorf("check JSON invalid: %w", err)
@@ -525,7 +535,8 @@ func doAuditJUnit(raw []byte, minCases int) error {
 	return nil
 }
 
-func doValidate(root string, session DoSession, requireCognition bool) DoValidation {
+func doValidate(root string, session DoSession, requireCognition bool, profiles ...*doTimings) DoValidation {
+	timings := doTimingFrom(profiles)
 	validation := DoValidation{Status: "blocked", EvidenceOrigin: "agent_tool_observation", DefinitionDigest: session.DefinitionDigest, VerifiedAt: doNow(), Blockers: []string{}, ChangedSourcePaths: []string{}, CognitionCloseout: "not_applicable"}
 	if err := doVerifyInstanceBinding(root, session); err != nil {
 		validation.Blockers = append(validation.Blockers, err.Error())
@@ -551,25 +562,31 @@ func doValidate(root string, session DoSession, requireCognition bool) DoValidat
 		validation.Blockers = append(validation.Blockers, err.Error())
 		return validation
 	}
-	currentSources, fingerprint, _, _, err := doCaptureSource(root, session.Definition, session.WriteScope)
+	workspace, err := doWorkspaceStatus(root, timings)
+	if err != nil {
+		validation.Blockers = append(validation.Blockers, err.Error())
+		return validation
+	}
+	currentSources, fingerprint, _, _, err := doCaptureSourceAt(root, session.Definition, workspace, timings, session.WriteScope)
 	if err != nil {
 		validation.Blockers = append(validation.Blockers, err.Error())
 		return validation
 	}
 	validation.SourceFingerprint = fingerprint
+	evidenceTiming := timings.phase("artifact_evidence")
 	latest := doLatestAttempts(session)
 	accepted := []DoAttempt{}
 	visited := map[string]bool{}
 	for _, step := range session.Definition.Steps {
 		if step.Required {
 			validation.RequiredSteps++
-			doValidateRequiredClosure(root, session, latest, step.ID, "step", fingerprint, &validation, &accepted, visited)
+			doValidateRequiredClosure(root, session, latest, step.ID, "step", fingerprint, &validation, &accepted, visited, timings)
 		}
 	}
 	for _, check := range session.Definition.Checks {
 		if check.Required {
 			validation.RequiredChecks++
-			doValidateRequiredClosure(root, session, latest, check.ID, "check", fingerprint, &validation, &accepted, visited)
+			doValidateRequiredClosure(root, session, latest, check.ID, "check", fingerprint, &validation, &accepted, visited, timings)
 		}
 	}
 	// Unreconciled effects belong to the whole session, including optional
@@ -590,14 +607,22 @@ func doValidate(root string, session DoSession, requireCognition bool) DoValidat
 			}
 		}
 	}
-	changed, err := runcontrol.InspectWorkspaceDelta(context.Background(), root, session.BaselineJSON)
+	evidenceTiming()
+	// An artifact can take seconds to hash. Take a fresh Git observation
+	// afterwards so writes during evidence validation cannot evade the audit.
+	workspace, err = doWorkspaceStatus(root, timings)
+	var changed []string
+	if err == nil {
+		deltaTiming := timings.phase("workspace_delta")
+		changed, err = workspace.InspectDelta(context.Background(), session.BaselineJSON)
+		deltaTiming()
+		timings.count("changed_paths", int64(len(changed)))
+	}
 	if err != nil {
 		validation.Blockers = append(validation.Blockers, err.Error())
 	} else {
-		view, viewErr := runcontrol.OpenViewForRepository(context.Background(), root)
-		if viewErr == nil {
-			defer view.Close()
-		}
+		var view *runcontrol.View
+		readOwners := false
 		for _, p := range changed {
 			if doScopeContains([]string{path.Dir(doSessionRef(session.ID))}, p) {
 				continue
@@ -652,7 +677,16 @@ func doValidate(root string, session DoSession, requireCognition bool) DoValidat
 			// Independent concurrent owners are visible, but this session cannot
 			// absorb their changes into its operation or learning evidence.
 			ownedByOther := false
-			if viewErr == nil {
+			if !readOwners {
+				workTiming := timings.phase("work_board")
+				view, _ = runcontrol.OpenViewForRepository(context.Background(), root)
+				workTiming()
+				readOwners = true
+				if view != nil {
+					defer view.Close()
+				}
+			}
+			if view != nil {
 				owners, _ := view.FindWorkOwners(context.Background(), p)
 				for _, owner := range owners {
 					if owner.Work.WorkID != session.WorkID {
@@ -665,6 +699,7 @@ func doValidate(root string, session DoSession, requireCognition bool) DoValidat
 			}
 		}
 	}
+	validation.sourceCloseoutReady = len(validation.Blockers) == 0 && len(validation.ChangedSourcePaths) > 0
 	if requireCognition {
 		if err := doRequireCognitionIntentsClosed(root, session); err != nil {
 			validation.Blockers = append(validation.Blockers, err.Error())
@@ -715,7 +750,7 @@ func doValidate(root string, session DoSession, requireCognition bool) DoValidat
 
 // A declared dependency is required by its consumer even when it was optional
 // as a standalone action. Validate its observations and outputs as well.
-func doValidateRequiredClosure(root string, session DoSession, latest map[string]DoAttempt, id, kind, fingerprint string, validation *DoValidation, accepted *[]DoAttempt, visited map[string]bool) {
+func doValidateRequiredClosure(root string, session DoSession, latest map[string]DoAttempt, id, kind, fingerprint string, validation *DoValidation, accepted *[]DoAttempt, visited map[string]bool, timings *doTimings) {
 	if visited[id] {
 		return
 	}
@@ -730,12 +765,12 @@ func doValidateRequiredClosure(root string, session DoSession, latest map[string
 		if _, err := doFindAction(session, dependencyKind, dependency); err != nil {
 			dependencyKind = "check"
 		}
-		doValidateRequiredClosure(root, session, latest, dependency, dependencyKind, fingerprint, validation, accepted, visited)
+		doValidateRequiredClosure(root, session, latest, dependency, dependencyKind, fingerprint, validation, accepted, visited, timings)
 	}
-	doValidateAttempt(root, session, latest, id, kind, fingerprint, validation, accepted)
+	doValidateAttempt(root, session, latest, id, kind, fingerprint, validation, accepted, timings)
 }
 
-func doValidateAttempt(root string, session DoSession, latest map[string]DoAttempt, id, kind, fingerprint string, validation *DoValidation, accepted *[]DoAttempt) {
+func doValidateAttempt(root string, session DoSession, latest map[string]DoAttempt, id, kind, fingerprint string, validation *DoValidation, accepted *[]DoAttempt, timings *doTimings) {
 	attempt, ok := latest[id]
 	if !ok || attempt.Status != "passed" {
 		validation.Blockers = append(validation.Blockers, kind+" "+id+" has no current passed attempt")
@@ -782,37 +817,51 @@ func doValidateAttempt(root string, session DoSession, latest map[string]DoAttem
 			return
 		}
 	}
-	for _, ref := range attempt.Results {
+	var checkResult *DoResultRef
+	if action.check != nil && action.check.Kind != "observation" {
+		checkResult, err = doCheckResult(*action.check, attempt.Results)
+		if err != nil {
+			validation.Blockers = append(validation.Blockers, err.Error())
+			return
+		}
+	}
+	for i := range attempt.Results {
+		ref := &attempt.Results[i]
 		if !doScopeContains([]string{path.Join(path.Dir(doSessionRef(session.ID)), "evidence")}, ref.SnapshotRef) {
 			validation.Blockers = append(validation.Blockers, "foreign evidence snapshot")
 			return
 		}
 		raw, err := secureProjectReadFile(root, ref.SnapshotRef)
-		if err != nil || doBytesDigest(raw) != ref.SnapshotSHA256 {
+		timings.count("result_snapshots", 1)
+		if err != nil {
 			validation.Blockers = append(validation.Blockers, "evidence snapshot missing or changed")
 			return
 		}
 		if ref.Kind == "file" {
-			if err := doVerifyArtifactReceipt(root, ref); err != nil {
+			if err := doVerifyArtifactReceiptBytes(root, *ref, raw); err != nil {
 				validation.Blockers = append(validation.Blockers, err.Error())
 				return
 			}
-		} else if doBytesDigest(raw) != ref.SHA256 || int64(len(raw)) != ref.Size {
-			validation.Blockers = append(validation.Blockers, "recorded report size or digest mismatch")
-			return
 		} else {
+			snapshotDigest := doBytesDigest(raw)
+			if snapshotDigest != ref.SnapshotSHA256 || snapshotDigest != ref.SHA256 || int64(len(raw)) != ref.Size {
+				validation.Blockers = append(validation.Blockers, "recorded report size or digest mismatch")
+				return
+			}
 			digest, size, err := doHashArtifact(root, ref.Path)
 			if err != nil || size != ref.Size || digest != ref.SHA256 {
 				validation.Blockers = append(validation.Blockers, "current result file is missing or changed: "+ref.Path)
 				return
 			}
+			if ref == checkResult {
+				if err := doCheckAssertion(*action.check, raw); err != nil {
+					validation.Blockers = append(validation.Blockers, err.Error())
+					return
+				}
+			}
 		}
-	}
-	if action.check != nil && action.check.Kind != "observation" {
-		if err := doCheckEvidence(root, *action.check, attempt.Results, true); err != nil {
-			validation.Blockers = append(validation.Blockers, err.Error())
-			return
-		}
+		timings.count("artifact_hashes", 1)
+		timings.count("artifact_bytes", ref.Size)
 	}
 	*accepted = append(*accepted, attempt)
 }

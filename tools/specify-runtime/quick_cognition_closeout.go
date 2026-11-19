@@ -156,8 +156,10 @@ func (service quickService) cognitionCloseoutStatus(workspacePath string) map[st
 	}
 	finish := func() map[string]any {
 		if needs && out["allowed_close"] != true {
-			out["next_argv"] = mutationCognitionRecoveryArgv(workspacePath, "sp-quick", service.readStatusChangedCodePaths(workspacePath))
-			out["recommended_next_action"] = mutationCognitionRecoveryText(workspacePath, "sp-quick", service.readStatusChangedCodePaths(workspacePath))
+			if _, ok := out["recommended_next_action"]; !ok {
+				out["next_argv"] = mutationCognitionRecoveryArgv(workspacePath, "sp-quick", service.readStatusChangedCodePaths(workspacePath))
+				out["recommended_next_action"] = mutationCognitionRecoveryText(workspacePath, "sp-quick", service.readStatusChangedCodePaths(workspacePath))
+			}
 		}
 		return out
 	}
@@ -179,8 +181,33 @@ func (service quickService) cognitionCloseoutStatus(workspacePath string) map[st
 		if needs && receipt.StrongBinding == nil {
 			allowed, reason = false, "legacy_receipt_missing_strong_binding"
 		}
-		if needs && receipt.StrongBinding != nil && receipt.StrongBinding.ItemID != "" {
-			allowed, reason = false, "terminal_scope_requires_joined_binding"
+		if proof := receipt.StrongBinding; proof != nil {
+			out["binding_scope"] = "joined"
+			if proof.Digest != closeoutBindingDigest(*proof) {
+				allowed, reason = false, "strong_binding_receipt_version_changed"
+			}
+			if proof.ItemID != "" {
+				out["binding_scope"] = "item"
+				out["binding_item_id"] = proof.ItemID
+				if needs && allowed {
+					join, joinErr := service.deriveQuickJoinedBinding(workspacePath, receipt)
+					hasJoin := joinErr == nil && receipt.QuickJoinedBinding != nil && *receipt.QuickJoinedBinding == *join
+					if joinErr == nil {
+						joinErr = verifyQuickJoinWork(service.projectRoot, proof, hasJoin)
+					}
+					switch {
+					case joinErr != nil:
+						allowed, reason = false, "terminal_scope_requires_joined_binding"
+						out["recommended_next_action"] = "Use the joined Quick Work without --item-id. Item recovery is unavailable: " + joinErr.Error()
+					case hasJoin:
+						out["binding_scope"] = "joined"
+					default:
+						allowed, reason = false, "terminal_scope_requires_joined_binding"
+						out["next_argv"] = quickCognitionJoinArgv(service.projectRoot, filepath.Base(workspacePath), proof)
+						out["recommended_next_action"] = "Run the returned quick cognition-join command as the current Work owner, then recheck quick status."
+					}
+				}
+			}
 		}
 		out["allowed_close"] = allowed
 		if reason != "" {
@@ -224,6 +251,9 @@ func (service quickService) validateCognitionCloseoutForClose(workspacePath, sta
 	state := strings.TrimSpace(fmt.Sprint(gate["result_state"]))
 	status := strings.TrimSpace(fmt.Sprint(gate["status"]))
 	next := mutationCognitionRecoveryText(workspacePath, "sp-quick", service.readStatusChangedCodePaths(workspacePath))
+	if gate["blocked_reason"] == "terminal_scope_requires_joined_binding" {
+		return fmt.Errorf("cannot close as resolved: cognition closeout result_state=%q is not closeable: terminal_scope_requires_joined_binding; run specify-runtime quick status %q --format json and follow cognition_closeout recovery. %s", state, filepath.Base(workspacePath), gate["recommended_next_action"])
+	}
 	switch status {
 	case "missing", "missing-receipt":
 		return fmt.Errorf("cannot close as resolved: project cognition closeout receipt is missing for source-changing quick work; %s; greenfield/empty graph still needs no_op from shared apply or an explicit dirty fallback when no trustworthy intent can be formed", next)

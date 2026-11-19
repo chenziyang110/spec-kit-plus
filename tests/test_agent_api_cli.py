@@ -10,6 +10,13 @@ from specify_cli.command_catalog import command_catalog
 runner = CliRunner()
 
 
+@pytest.fixture
+def unbound_project(tmp_path, monkeypatch) -> None:
+    # Stop launcher discovery at this project even if an ancestor is configured.
+    (tmp_path / ".specify").mkdir()
+    monkeypatch.chdir(tmp_path)
+
+
 @pytest.mark.parametrize("retired", ("handshake", "list"))
 def test_python_api_does_not_duplicate_runtime_discovery_commands(retired: str) -> None:
     result = runner.invoke(app, ["api", retired, "--help"])
@@ -38,7 +45,7 @@ def test_agent_api_show_and_schema_expand_one_record() -> None:
     assert schema_payload["data"]["schema"]["type"] == "object"
 
 
-def test_agent_api_commands_catalog_lists_all_surfaces_progressively() -> None:
+def test_agent_api_commands_catalog_lists_all_surfaces_progressively(unbound_project) -> None:
     result = runner.invoke(
         app,
         [
@@ -68,7 +75,7 @@ def test_agent_api_commands_catalog_lists_all_surfaces_progressively() -> None:
     )
 
 
-def test_agent_api_command_expands_only_one_cli_operation() -> None:
+def test_agent_api_command_expands_only_one_cli_operation(unbound_project) -> None:
     result = runner.invoke(
         app,
         ["api", "command", "learning.start", "--format", "json"],
@@ -83,6 +90,12 @@ def test_agent_api_command_expands_only_one_cli_operation() -> None:
         item for item in payload["data"]["parameters"] if "--command" in item["flags"]
     )
     assert command_option["required"] is True
+    assert command_option["type"] == {"name": "str"}
+    context_option = next(
+        item for item in payload["data"]["parameters"] if "--context" in item["flags"]
+    )
+    assert context_option["repeatable"] is True
+    assert context_option["type"] == {"name": "str"}
     assert payload["data"]["machine_output"]["format_option"] == "--format"
 
 
@@ -133,12 +146,16 @@ def test_agent_api_command_recognizes_boolean_json_output_switches() -> None:
     )
 
     assert result.exit_code == 0
-    machine_output = json.loads(result.stdout)["data"]["machine_output"]
-    assert machine_output == {
+    detail = json.loads(result.stdout)["data"]
+    assert detail["machine_output"] == {
         "declared": True,
         "format_option": "--json",
         "choices": ["json"],
     }
+    parameters = {parameter["name"]: parameter for parameter in detail["parameters"]}
+    assert parameters["json_output"]["type"] == {"name": "boolean"}
+    assert parameters["slug"]["kind"] == "argument"
+    assert parameters["slug"]["required"] is True
 
 
 def test_agent_api_command_extracts_declared_format_values_from_live_help() -> None:

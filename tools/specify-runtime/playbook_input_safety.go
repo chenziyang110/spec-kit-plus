@@ -17,6 +17,12 @@ var playbookPublicPathToken = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
 var playbookPowerShellPreference = regexp.MustCompile(`(?i)^\$(?:ErrorAction|Progress|Warning|Information|Verbose|Debug|Confirm|WhatIf)Preference=?$`)
 var playbookPublicArtifactPath = regexp.MustCompile(`(?i)^(?:[a-z]:)?(?:[\\/]{1,2})?(?:[a-z0-9._-]+[\\/])*([a-z][a-z0-9._-]*[._-][0-9]+(?:[._-][a-z0-9]+)*\.(?:exe|dll|msi|msix|msixbundle|zip|7z|cab|iso|wim|esd|tar|gz|bz2|xz))$`)
 
+func playbookAddPublicPathTokens(tokens map[string]bool, value string) {
+	for _, part := range strings.Split(value, "/") {
+		tokens[part] = true
+	}
+}
+
 // Inspect field values rather than JSON punctuation. Only the entropy fallback
 // gets syntax-aware exceptions; credentials and project policy always run first.
 func validatePlaybookSensitiveContent(root string, definition PlaybookDefinition) error {
@@ -44,18 +50,30 @@ func validatePlaybookSensitiveContent(root string, definition PlaybookDefinition
 		tokens := map[string]bool{}
 		for _, source := range sources {
 			if playbookPublicPathToken.MatchString(source) {
-				for _, part := range strings.Split(source, "/") {
-					tokens[part] = true
-				}
+				playbookAddPublicPathTokens(tokens, source)
 			}
 		}
 		argvPublicTokens[pointer] = tokens
 	}
+	// The definition validator checks these paths and their existing parents
+	// before sensitivity validation. A reusable template is checked via its
+	// resolved example first; only literal path components qualify here. Use
+	// exact positions so arbitrary JSON with the same keys is still inspected.
+	typedPathPointers := map[string]bool{}
 	for index, step := range definition.Steps {
-		bindPublicTokens("/steps/"+strconv.Itoa(index)+"/argv", step.Cwd, step.Argv)
+		pointer := "/steps/" + strconv.Itoa(index)
+		bindPublicTokens(pointer+"/argv", step.Cwd, step.Argv)
+		for i := range step.SourceWrites {
+			typedPathPointers[pointer+"/source_writes/"+strconv.Itoa(i)] = true
+		}
 	}
 	for index, check := range definition.Checks {
-		bindPublicTokens("/checks/"+strconv.Itoa(index)+"/argv", check.Cwd, check.Argv)
+		pointer := "/checks/" + strconv.Itoa(index)
+		bindPublicTokens(pointer+"/argv", check.Cwd, check.Argv)
+		switch check.Kind {
+		case "file", "json", "junit":
+			typedPathPointers[pointer+"/result_path"] = true
+		}
 	}
 	var inspect func(any, string, string) error
 	inspect = func(value any, pointer, key string) error {
@@ -96,6 +114,9 @@ func validatePlaybookSensitiveContent(root string, definition PlaybookDefinition
 			for token := range argvPublicTokens[path.Dir(pointer)] {
 				publicTokens[token] = true
 			}
+			if typedPathPointers[pointer] && playbookPublicPathToken.MatchString(item) {
+				playbookAddPublicPathTokens(publicTokens, item)
+			}
 			// Versioned package filenames are public command data, even before
 			// the output exists. Only their basename bypasses the entropy
 			// fallback; directories, shell text and deterministic secret/policy
@@ -111,9 +132,7 @@ func validatePlaybookSensitiveContent(root string, definition PlaybookDefinition
 			if pointer == "/owner" && playbookScriptPath(item) && playbookPublicPathToken.MatchString(item) {
 				if target, pathErr := playbookSafePath(root, item, false); pathErr == nil {
 					if info, statErr := os.Lstat(target); statErr == nil && info.Mode().IsRegular() {
-						for _, part := range strings.Split(item, "/") {
-							publicTokens[part] = true
-						}
+						playbookAddPublicPathTokens(publicTokens, item)
 					}
 				}
 			}
@@ -121,9 +140,7 @@ func validatePlaybookSensitiveContent(root string, definition PlaybookDefinition
 				candidate := strings.TrimPrefix(strings.ReplaceAll(item, "\\", "/"), "./")
 				if playbookPublicPathToken.MatchString(candidate) {
 					if _, pathErr := playbookSafePath(root, candidate, key == "cwd"); pathErr == nil {
-						for _, part := range strings.Split(candidate, "/") {
-							publicTokens[part] = true
-						}
+						playbookAddPublicPathTokens(publicTokens, candidate)
 					}
 				}
 			}

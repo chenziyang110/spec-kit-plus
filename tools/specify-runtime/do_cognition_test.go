@@ -86,7 +86,7 @@ func doSeedCognitionBaseline(t *testing.T, root string) rt.Paths {
 	return paths
 }
 
-func doCognitionPlannerPayload(t *testing.T, root string, session DoSession) []byte {
+func doCognitionPlannerPayload(t *testing.T, root string, session DoSession, returnedArgv ...[]string) []byte {
 	t.Helper()
 	validation := doValidate(root, session, false)
 	if validation.Status != "passed" || len(validation.ChangedSourcePaths) == 0 {
@@ -109,6 +109,9 @@ func doCognitionPlannerPayload(t *testing.T, root string, session DoSession) []b
 	args := []string{"cognition", "closeout-plan", "--workflow", "sp-do", "--scope-dir", ".specify/do/sessions/" + session.ID, "--scope-mode", "explicit", "--format", "json"}
 	for _, p := range validation.ChangedSourcePaths {
 		args = append(args, "--changed-path", p)
+	}
+	if len(returnedArgv) > 0 {
+		args = returnedArgv[0][1:]
 	}
 	var stdout, stderr bytes.Buffer
 	if code := Run(args, &stdout, &stderr, "test"); code != 0 {
@@ -157,7 +160,19 @@ func doApplyCognitionPayload(t *testing.T, root string, session DoSession, paylo
 func TestDoSourceMutationFullCognitionRefreshThenPlaybookSaved(t *testing.T) {
 	var paths rt.Paths
 	root, _, session := doSourceMutationFixtureWithSetup(t, func(root string) { paths = doSeedCognitionBaseline(t, root) })
-	payload := doCognitionPlannerPayload(t, root, session)
+	beforeCloseout := session.Revision
+	next, err := doNext(root, session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	packet, _ := next["source_closeout"].(map[string]any)
+	binding, _ := packet["binding"].(*DoCognitionBinding)
+	argv, _ := packet["plan_argv"].([]string)
+	if next["complete_ready"] != false || binding == nil || len(argv) < 3 || argv[2] != "closeout-plan" ||
+		!equalCloseoutPaths(binding.ChangedPaths, doValidate(root, session, false).ChangedSourcePaths) {
+		t.Fatalf("Do next did not return the current exact source closeout: %+v", next)
+	}
+	payload := doCognitionPlannerPayload(t, root, session, argv)
 	code, envelope := doApplyCognitionPayload(t, root, session, payload)
 	if code != 0 || envelope.Data["allowed_close"] != true || envelope.Data["closeout_state"] != "ready" || envelope.Data["validation_readiness"] != rt.ReadyReadiness {
 		t.Fatalf("full cognition refresh failed: %d %+v", code, envelope)
@@ -169,6 +184,14 @@ func TestDoSourceMutationFullCognitionRefreshThenPlaybookSaved(t *testing.T) {
 	session, digest, err := loadDoSession(root, session.ID)
 	if err != nil {
 		t.Fatal(err)
+	}
+	continuation, _ := envelope.Data["do_continuation"].(map[string]any)
+	complete, _ := continuation["complete_input"].(map[string]any)
+	if complete["expected_revision"] != float64(session.Revision) || session.Revision <= beforeCloseout {
+		t.Fatalf("apply returned no current completion input: %+v", continuation)
+	}
+	if _, err := doFinish(root, session, digest, doFinishInput{ExpectedRevision: beforeCloseout}); err == nil || !strings.Contains(err.Error(), "revision conflict") {
+		t.Fatalf("stale closeout revision was admitted: %v", err)
 	}
 	validation := doValidate(root, session, true)
 	if validation.Status != "passed" || validation.CognitionCloseout != "ready" {
@@ -237,10 +260,26 @@ func TestDoSourceMutationFullCognitionRefreshThenPlaybookSaved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	published := playbookPublishFixture(t, root, session, "")
-	playbookFinishFixture(t, root, session.ID, published)
+	var stdout bytes.Buffer
+	publication, err := json.Marshal(PlaybookUpdateRequest{Definition: doMethodDefinition(session), ChangeSummary: "Save verified source operation", SessionID: session.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code := runPlaybook([]string{"update", "--project-root", root, "--input-json", string(publication)}, &stdout); code != 0 {
+		t.Fatalf("playbook publish: %s", stdout.String())
+	}
+	var published struct {
+		Data map[string]json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &published); err != nil || len(published.Data["finish_input"]) == 0 {
+		t.Fatalf("playbook response did not provide current finish_input: %v %s", err, stdout.String())
+	}
+	stdout.Reset()
+	if code := runDo([]string{"finish", session.ID, "--project-root", root, "--input-json", string(published.Data["finish_input"])}, &stdout); code != 0 {
+		t.Fatalf("finish from returned input: %s", stdout.String())
+	}
 	finished, _, err := loadDoSession(root, session.ID)
-	if err != nil || finished.KnowledgeStatus != "saved" || doValidate(root, finished, true).Status != "passed" {
+	if err != nil || finished.KnowledgeStatus != "saved" || len(finished.Attempts) != len(session.Attempts) || doValidate(root, finished, true).Status != "passed" {
 		t.Fatalf("full source-mutation path failed to save: %+v %v", finished, err)
 	}
 }
@@ -260,6 +299,16 @@ func TestDoCognitionPendingIntentRetainsPreUpdateSourceBinding(t *testing.T) {
 		t.Fatalf("intent omitted its pre-update Do binding: %+v %v", intents, err)
 	}
 	intent := intents[0]
+	current, _, err := loadDoSession(root, session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next, err := doNext(root, current)
+	packet, _ := next["source_closeout"].(map[string]any)
+	argv, _ := packet["recovery_argv"].([]string)
+	if err != nil || len(argv) < 4 || argv[3] != "inspect" || !strings.Contains(strings.Join(argv, " "), intent.ID) || packet["plan_argv"] != nil {
+		t.Fatalf("Do next did not preserve the existing closeout intent: %+v %v", next, err)
+	}
 	copy := intent
 	copy.DoBinding = nil
 	if storedCloseoutIntentDigest(copy) == intent.InputDigest {
@@ -274,6 +323,9 @@ func TestDoCognitionPendingIntentRetainsPreUpdateSourceBinding(t *testing.T) {
 	code = Run([]string{"cognition", "closeout", "replay", "--project-root", root, "--intent-id", intent.ID, "--expected-digest", intent.InputDigest, "--format", "json"}, &replay, &stderr, "test")
 	if err := json.Unmarshal(replay.Bytes(), &envelope); err != nil || code != 0 || envelope.Data["allowed_close"] != true {
 		t.Fatalf("same-boundary selected replay did not complete: %v %+v %s", err, envelope, stderr.String())
+	}
+	if envelope.Data["do_continuation"] == nil {
+		t.Fatalf("successful replay did not supply a Do continuation: %+v", envelope)
 	}
 	receipt, err := loadMutationCognitionReceipt(filepath.Join(root, ".specify/do/sessions", session.ID))
 	if err != nil || !reflect.DeepEqual(receipt.DoBinding, intent.DoBinding) || receipt.IntentID != intent.ID {

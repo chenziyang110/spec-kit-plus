@@ -176,3 +176,122 @@ def probe(runtime: Path, project: Path) -> dict:
             "closeout_owner_calls": {"legacy_finish_update_finish": baseline["closeout_owner_calls"], "complete": rounds[0]["closeout_owner_calls"]},
             "incremental_required_actions": {"full_replan": baseline["new_epoch_native_observations"], "verified_retention": rounds[0]["new_epoch_native_observations"]}, "runtime_execution_verified": False,
             "measurement_scope": "actual local adapter episode; excludes model reasoning and remote client integrations"}
+
+
+def workspace_probe(runtime: Path, project: Path, *, source_write: bool, timings: bool,
+                    tracked_files: int = 1500, output_mib: int = 32) -> dict:
+    """Use a large Git workspace, a tiny declared scope, and actual child tools."""
+    project.mkdir(parents=True, exist_ok=False)
+    (project / "src").mkdir()
+    (project / "corpus").mkdir()
+    (project / "src/retained.txt").write_text("before\n", encoding="utf-8")
+    (project / "src/unchanged.txt").write_text("unchanged\n", encoding="utf-8")
+    for index in range(tracked_files):
+        (project / "corpus" / f"fixture-{index}.txt").write_text(f"tracked fixture {index}\n", encoding="utf-8")
+    source_effect = 'Path("src/retained.txt").write_text("after\\n", encoding="utf-8")\n' if source_write else ""
+    (project / "build.py").write_text(
+        'from pathlib import Path\n'
+        'Path("out").mkdir(exist_ok=True)\n'
+        f'Path("out/package.bin").write_bytes(b"d" * ({output_mib} * 1024 * 1024))\n'
+        + source_effect,
+        encoding="utf-8",
+    )
+    environment = os.environ.copy()
+    environment["PATH"] = str(Path(sys.executable).parent) + os.pathsep + environment.get("PATH", "")
+    for args in (["git", "init", "-q"], ["git", "add", "."],
+                 ["git", "-c", "user.name=Do probe", "-c", "user.email=probe@example.test", "commit", "-qm", "fixture"]):
+        subprocess.run(args, cwd=project, env=environment, check=True, capture_output=True)
+    # Local pre-existing edits exercise baseline/delta hashing independently of
+    # the small declared write and output scopes.
+    for index in range(min(64, tracked_files)):
+        (project / "corpus" / f"fixture-{index}.txt").write_bytes(b"local edit\n" * 4096)
+    (project / ".specify").mkdir()
+    measurements: dict = {}
+
+    def invoke(phase, *args, payload=None, status="ok"):
+        argv = [str(runtime), "do", *args, "--format", "json"]
+        if payload is not None:
+            argv += ["--input-json", "-"]
+        if phase and timings and args[0] in {"start", "resume", "validate", "finish"}:
+            argv += ["--timings"]
+        started = time.perf_counter()
+        result = subprocess.run(argv, cwd=project, env=environment, encoding="utf-8", capture_output=True,
+                                input=json.dumps(payload) if payload is not None else None, timeout=90)
+        envelope = json.loads(result.stdout)
+        assert envelope["status"] == status and (result.returncode == 0) == (status == "ok"), envelope
+        if phase:
+            measurements[phase] = {"elapsed_ms": round(1000 * (time.perf_counter() - started), 1)}
+            if "timings" in envelope["data"]:
+                measurements[phase]["runtime"] = envelope["data"]["timings"]
+        return envelope["data"]
+
+    step = {"id": "build", "purpose": "Write actual package bytes", "cwd": ".", "argv": ["python", "build.py"],
+            "script_ref": "build.py", "depends_on": [], "required": True, "expected_result": "Package written",
+            "side_effect": "local_write"}
+    if source_write:
+        step["source_writes"] = ["src/retained.txt"]
+    definition = {
+        "operation": "package", "target": "workspace-fixture", "owner": "build.py", "variant": "python",
+        "task_family": "workspace-fixture", "title": "Build a small scoped package", "goal": "Verify the current package",
+        "aliases": ["local fixture"], "applicability": {}, "source_files": ["build.py"], "learning_refs": [],
+        "steps": [step],
+        "checks": [{"id": "archive", "purpose": "Inspect written package", "cwd": ".", "argv": [],
+                    "depends_on": ["build"], "required": True, "expected_result": "Verify package bytes",
+                    "kind": "file", "result_path": "out/package.bin"}],
+    }
+    session_id = "workspace-probe"
+    episode_start = time.perf_counter()
+    prepared = invoke("prepare", "prepare", payload={
+        "session_id": session_id, "definition": definition, "write_scope": ["src"] if source_write else [],
+        "output_scope": ["out"], "agent_id": "workspace-probe", "adapter_id": "subprocess",
+    })
+    state = invoke("start", "start", payload=prepared["start_input"])
+    replacement = copy.deepcopy(definition)
+    replacement["title"] += " and inspect the output"
+    state = invoke("replan", "resume", session_id, payload={"expected_revision": state["revision"], "replan": {
+        "request_id": "adjust-title", "mode": "unstarted", "definition": replacement}})
+    native_ms = 0.0
+    for name in ("build", "archive"):
+        packet = invoke(None, "next", session_id)
+        action = packet["ready"][0]
+        assert action["target_id"] == name, packet
+        state = invoke(None, "record", session_id, payload=action["started_input"])
+        event = action["completion_event"]
+        event["started_at"] = stamp()
+        native_start = time.perf_counter()
+        if name == "build":
+            process = subprocess.run(action["action"]["argv"], cwd=project, env=environment, check=True,
+                                     capture_output=True, timeout=60)
+            event["exit_code"] = process.returncode
+        else:
+            file = project / action["action"]["result_path"]
+            assert file.stat().st_size == output_mib * 1024 * 1024
+            with file.open("rb") as handle:
+                assert handle.read(1) == b"d"
+            event["result_refs"] = [{"path": action["action"]["result_path"], "kind": "file"}]
+        native_ms += 1000 * (time.perf_counter() - native_start)
+        event.update({"finished_at": stamp(), "status": "passed", "tool_call_id": f"native-{name}"})
+        state = invoke(None, "record", session_id, payload={"expected_revision": state["revision"],
+                       "request_id": f"finish-{name}", "events": [event]})
+    expected = "blocked" if source_write else "ok"
+    validation = invoke("validate", "validate", session_id, status=expected)["validation"]
+    assert validation["changed_source_paths"] == (["src/retained.txt"] if source_write else [])
+    if source_write:
+        assert validation["cognition_closeout"] == "required"
+        packet = invoke("next", "next", session_id)
+        if timings:
+            assert packet["source_closeout"]["binding"]["changed_paths"] == ["src/retained.txt"]
+    invoke("finish", "finish", session_id, payload={"expected_revision": state["revision"],
+           "knowledge_status": "not_applicable"}, status=expected)
+    measurement = {
+        "scope": "retained-source" if source_write else "output-only",
+        "tracked_files": tracked_files, "output_mib": output_mib, "cli": measurements,
+        "native_ms": round(native_ms, 1), "total_ms": round(1000 * (time.perf_counter() - episode_start), 1),
+        "validation_status": validation["status"],
+    }
+    # Recheck through real public validation, using a same-size replacement.
+    # This happens after timing so the two runtimes have the same measured work.
+    (project / "out/package.bin").write_bytes(b"x" * (output_mib * 1024 * 1024))
+    tampered = invoke(None, "validate", session_id, status="blocked")["validation"]
+    assert any("artifact" in cause and "changed" in cause for cause in tampered["blockers"]), tampered
+    return measurement

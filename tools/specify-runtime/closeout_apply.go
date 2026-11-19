@@ -454,6 +454,8 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 		partialReasons, globalDebtReasons, scopePartialReasons := update.CloseoutReplayReasons(completedStatus)
 		env := NewEnvelope("ok", "project cognition closeout was already recorded and remains current")
 		env.Data = map[string]any{"closeout_status": "recorded", "replayed_completed": true, "workflow": workflow, "scope": relScope, "update_id": completedReceipt.UpdateID, "result_state": completedStatus.LastUpdateOutcome, "scope_result_state": completedStatus.LastUpdateScopeOutcome, "global_freshness": completedStatus.Freshness, "global_readiness": completedStatus.Readiness, "global_debt_reasons": globalDebtReasons, "scope_partial_reasons": scopePartialReasons, "partial_refresh_reasons": partialReasons, "closeout_state": completedReceipt.ResultState, "intent_id": intent.ID, "intent_ref": intentRef, "receipt": completedReceipt, "allowed_close": true, "resumed_from_intent": true, "changed_path_count": len(completedReceipt.ChangedPaths), "changed_paths": completedReceipt.ChangedPaths, "replayed_intents": replayedIntents}
+		projectQuickCloseoutApply(&env, absScope)
+		doAddCognitionContinuation(paths.Root, completedReceipt.DoBinding, env.Data)
 		return writeEnvelope(stdout, env)
 	}
 	result := closeoutApplyResult(workflow, relScope, updatePayload, resumed, intentRef, verbose)
@@ -475,6 +477,8 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 	}
 	env := NewEnvelope("ok", summary)
 	env.Data = result
+	projectQuickCloseoutApply(&env, absScope)
+	doAddCognitionContinuation(paths.Root, doBinding, env.Data)
 	return writeEnvelope(stdout, env)
 }
 

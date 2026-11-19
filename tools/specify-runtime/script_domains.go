@@ -191,6 +191,7 @@ func runQuick(args []string, stdout io.Writer) int {
 			"close",
 			"archive",
 			"cognition-closeout",
+			"cognition-join",
 			"checkpoint-stage",
 			"checkpoint-confirm",
 			"checkpoint-show",
@@ -205,6 +206,7 @@ func runQuick(args []string, stdout io.Writer) int {
 		env.Data["item_start_usage"] = "specify-runtime quick item-start <id> --item Qn [--current-work-id <work-id> --current-work-fence <fence>] --format json"
 		env.Data["item_start_requires"] = "active matching Work identity plus an all-or-none confirmed claim over the complete Q write_scope before in_progress"
 		env.Data["cognition_closeout_usage"] = "specify-runtime quick cognition-closeout <id> --result-state ready|no_op|mark-dirty|partial [--reason <text>] [--evidence-json <array>] [--update-id <id>] [--binding-id <sealed-joined-Quick-binding-for-mark-dirty>] --format json"
+		env.Data["cognition_join_usage"] = quickCognitionJoinUsage
 		env.Data["item_accept_usage"] = "specify-runtime quick item-accept <id> --item Qn --evidence <text> [--allow-inline --reason <spawn_failed:...>] --format json"
 		env.Data["item_accept_requires"] = "matching worker-results/<lane-id>.json from result submit, or prior allow-inline / --allow-inline after spawn/tool failure; docs-only is invalid"
 		env.Data["allow_inline_usage"] = "specify-runtime quick allow-inline <id> --item Qn --reason 'spawn_failed: ...' --format json"
@@ -238,6 +240,12 @@ func runQuick(args []string, stdout io.Writer) int {
 		return writeEnvelope(stdout, env)
 	case "cognition-closeout":
 		env, err := service.runCognitionCloseout(quickID, args)
+		if err != nil {
+			return writeEnvelope(stdout, scriptDomainError("quick", err))
+		}
+		return writeEnvelope(stdout, env)
+	case "cognition-join":
+		env, err := service.runCognitionJoin(quickID, args)
 		if err != nil {
 			return writeEnvelope(stdout, scriptDomainError("quick", err))
 		}

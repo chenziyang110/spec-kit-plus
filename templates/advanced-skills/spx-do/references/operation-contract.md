@@ -292,11 +292,11 @@ execution passed or satisfy the final knowledge disposition.
 For manual publication, finalize in this order: `do finish <id>` with current `expected_revision` and
 `knowledge_status="pending"` records passed execution after all required checks
 and cognition gates; `playbook update` with the matching session and exact
-template returns `data.knowledge_receipt`; reread `do show <id>` for the latest
-revision, then `do finish <id>` with that revision, `knowledge_status="saved"`,
-and the complete receipt as `knowledge`. Method persistence can advance the
-session revision while declaring Work metadata scope. Never synthesize the
-receipt or rerun successful operations to recover knowledge persistence.
+template returns `data.knowledge_receipt`. Use `data.finish_argv` with the
+returned `data.finish_input`, which includes the current session revision and
+the receipt. On older runtimes, read `do show <id>` after publication and pass
+`knowledge_status="saved"` and the returned receipt as `knowledge` at that
+revision. Recover knowledge persistence using existing observations.
 Use `not_applicable` with a reason when no reusable method or usage should be retained.
 
 Retain authoritative commands, prerequisite/check ordering, validated shortcuts,

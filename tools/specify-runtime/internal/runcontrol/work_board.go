@@ -322,7 +322,7 @@ func (store *Store) BeginWork(ctx context.Context, params BeginWorkParams) (Work
 		UpdatedAtMS:       nowMS,
 	}
 
-	tx, err := store.db.BeginTx(ctx, nil)
+	tx, err := store.beginWrite(ctx)
 	if err != nil {
 		return WorkItem{}, nil, fmt.Errorf("begin work board registration: %w", err)
 	}
@@ -551,7 +551,7 @@ func (store *Store) AddWorkIntent(ctx context.Context, params AddWorkIntentParam
 	if err != nil {
 		return WorkItem{}, WriteIntent{}, err
 	}
-	tx, err := store.db.BeginTx(ctx, nil)
+	tx, err := store.beginWrite(ctx)
 	if err != nil {
 		return WorkItem{}, WriteIntent{}, fmt.Errorf("begin work scope expansion: %w", err)
 	}
@@ -670,7 +670,7 @@ func (store *Store) ClaimWorkIntents(ctx context.Context, params ClaimWorkIntent
 		normalized = append(normalized, spec)
 	}
 
-	tx, err := store.db.BeginTx(ctx, nil)
+	tx, err := store.beginWrite(ctx)
 	if err != nil {
 		return WorkItem{}, nil, fmt.Errorf("begin work scope claim: %w", err)
 	}
@@ -796,7 +796,7 @@ func (store *Store) CheckpointWork(ctx context.Context, params CheckpointWorkPar
 	if err != nil {
 		return WorkItem{}, err
 	}
-	tx, err := store.db.BeginTx(ctx, nil)
+	tx, err := store.beginWrite(ctx)
 	if err != nil {
 		return WorkItem{}, fmt.Errorf("begin work checkpoint: %w", err)
 	}
@@ -900,7 +900,7 @@ func (store *Store) TransitionWork(ctx context.Context, params TransitionWorkPar
 	if strings.TrimSpace(params.Reason) == "" {
 		return WorkItem{}, fmt.Errorf("%w: transition reason is required", ErrInvalidArgument)
 	}
-	tx, err := store.db.BeginTx(ctx, nil)
+	tx, err := store.beginWrite(ctx)
 	if err != nil {
 		return WorkItem{}, fmt.Errorf("begin work transition: %w", err)
 	}
@@ -997,7 +997,7 @@ func (store *Store) InterruptWork(ctx context.Context, params InterruptWorkParam
 	if err != nil {
 		return WorkItem{}, err
 	}
-	tx, err := store.db.BeginTx(ctx, nil)
+	tx, err := store.beginWrite(ctx)
 	if err != nil {
 		return WorkItem{}, fmt.Errorf("begin work interruption: %w", err)
 	}
@@ -1087,7 +1087,7 @@ func (store *Store) ReconcileExpiredWork(ctx context.Context, params ReconcileWo
 	if err != nil {
 		return nil, err
 	}
-	tx, err := store.db.BeginTx(ctx, nil)
+	tx, err := store.beginWrite(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin work board reconciliation: %w", err)
 	}
@@ -1250,7 +1250,7 @@ func (store *Store) ResumeWork(ctx context.Context, params ResumeWorkParams) (Wo
 	if params.LeaseUntil.IsZero() || !params.LeaseUntil.After(time.Now().UTC()) {
 		return WorkItem{}, fmt.Errorf("%w: lease_until must be in the future", ErrInvalidArgument)
 	}
-	tx, err := store.db.BeginTx(ctx, nil)
+	tx, err := store.beginWrite(ctx)
 	if err != nil {
 		return WorkItem{}, fmt.Errorf("begin resume work: %w", err)
 	}

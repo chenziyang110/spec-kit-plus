@@ -19,6 +19,11 @@ import (
 
 func r3SeedGraph(t *testing.T, root string, refs []string) {
 	t.Helper()
+	// Anchor discovery in this fixture even if a developer's temporary
+	// directory has a .specify directory higher in its parent chain.
+	if err := os.MkdirAll(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	paths, err := rt.ResolvePaths(root)
 	if err != nil {
 		t.Fatal(err)

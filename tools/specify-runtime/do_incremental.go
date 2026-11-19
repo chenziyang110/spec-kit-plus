@@ -189,7 +189,7 @@ func doPlanRetained(root string, previous DoSession, definition PlaybookDefiniti
 			}
 			validation := DoValidation{}
 			observations := []DoAttempt{}
-			doValidateAttempt(root, previous, latest, id, attempt.Kind, fingerprint, &validation, &observations)
+			doValidateAttempt(root, previous, latest, id, attempt.Kind, fingerprint, &validation, &observations, nil)
 			if len(validation.Blockers) > 0 {
 				continue
 			}
@@ -230,7 +230,7 @@ func doDependencyReady(root string, session DoSession, latest map[string]DoAttem
 	}
 	validation := DoValidation{}
 	accepted := []DoAttempt{}
-	doValidateRequiredClosure(root, session, latest, id, kind, fingerprint, &validation, &accepted, map[string]bool{})
+	doValidateRequiredClosure(root, session, latest, id, kind, fingerprint, &validation, &accepted, map[string]bool{}, nil)
 	if len(validation.Blockers) != 0 {
 		return fmt.Errorf("dependency %s evidence must be refreshed: %v", id, validation.Blockers)
 	}

@@ -45,7 +45,46 @@ func doCurrentCognitionBinding(root, sessionID string) (*DoCognitionBinding, err
 	if validation.Status != "passed" || len(validation.ChangedSourcePaths) == 0 {
 		return nil, fmt.Errorf("Do cognition requires completed source-bound execution and actual owned source changes: %s", strings.Join(validation.Blockers, "; "))
 	}
-	return &DoCognitionBinding{SessionID: session.ID, DefinitionEpoch: max(1, session.DefinitionEpoch), DefinitionDigest: session.DefinitionDigest, SourceFingerprint: validation.SourceFingerprint, ChangedPaths: normalizedCloseoutPaths(validation.ChangedSourcePaths)}, nil
+	return doCognitionBindingForValidation(session, validation), nil
+}
+
+func doCognitionBindingForValidation(session DoSession, validation DoValidation) *DoCognitionBinding {
+	return &DoCognitionBinding{SessionID: session.ID, DefinitionEpoch: max(1, session.DefinitionEpoch), DefinitionDigest: session.DefinitionDigest, SourceFingerprint: validation.SourceFingerprint, ChangedPaths: normalizedCloseoutPaths(validation.ChangedSourcePaths)}
+}
+
+func doSourceCloseoutPacket(root string, session DoSession, validation DoValidation) map[string]any {
+	binding := doCognitionBindingForValidation(session, validation)
+	scope := path.Dir(doSessionRef(session.ID))
+	packet := map[string]any{"binding": binding, "expected_revision": session.Revision, "cwd": "."}
+	recovery := mutationCognitionRecoveryArgv(filepath.Join(root, filepath.FromSlash(scope)), "sp-do", binding.ChangedPaths)
+	if len(recovery) > 2 && recovery[2] != "closeout-plan" {
+		packet["recovery_argv"] = recovery
+		return packet
+	}
+	// closeout-plan uses the project cwd, unlike the shared apply/inspect CLI.
+	argv := []string{"specify-runtime", "cognition", "closeout-plan", "--workflow", "sp-do", "--scope-dir", scope, "--scope-mode", "explicit"}
+	for _, changedPath := range binding.ChangedPaths {
+		argv = append(argv, "--changed-path", changedPath)
+	}
+	packet["plan_argv"] = append(argv, "--format", "json")
+	return packet
+}
+
+// Shared apply has published the exact receipt while holding the Do lock.
+// Supply current optimistic input. Finish/complete still verify live evidence.
+func doAddCognitionContinuation(root string, binding *DoCognitionBinding, data map[string]any) {
+	if binding == nil || data["allowed_close"] != true {
+		return
+	}
+	session, _, err := loadDoSession(root, binding.SessionID)
+	if err != nil || session.Blocker != nil || session.KnowledgeStatus != "pending" ||
+		session.DefinitionDigest != binding.DefinitionDigest || doCurrentDefinitionEpoch(session) != binding.DefinitionEpoch {
+		return
+	}
+	if err := doRequireCognitionIntentsClosed(root, session); err != nil {
+		return
+	}
+	data["do_continuation"] = doCompletePacket(session)
 }
 
 func doCognitionDeltaSessionOwnedBySession(root string, session DoSession, sourceFingerprint, changedPath string) (bool, error) {

@@ -24,6 +24,22 @@ type Store struct {
 	closeErr  error
 }
 
+type writeLockObserverKey struct{}
+
+// ObserveWriteLock reports how long BEGIN IMMEDIATE took, including any time
+// spent waiting for SQLite or for this Store's pooled connection.
+func ObserveWriteLock(ctx context.Context, observe func(time.Duration)) context.Context {
+	return context.WithValue(ctx, writeLockObserverKey{}, observe)
+}
+
+func (store *Store) beginWrite(ctx context.Context) (*sql.Tx, error) {
+	if observe, _ := ctx.Value(writeLockObserverKey{}).(func(time.Duration)); observe != nil {
+		start := time.Now()
+		defer func() { observe(time.Since(start)) }()
+	}
+	return store.db.BeginTx(ctx, nil)
+}
+
 // StoreAccessError identifies a local filesystem boundary that prevented the
 // repository-shared coordination store from opening. Callers keep this typed
 // so an agent can repair project-local runtime state without misclassifying the
@@ -213,7 +229,7 @@ func (store *Store) execInitializationPragma(ctx context.Context, statement stri
 func (store *Store) beginInitializationTransaction(ctx context.Context) (*sql.Tx, error) {
 	deadline := time.Now().Add(time.Duration(sqliteBusyTimeoutMS) * time.Millisecond)
 	for {
-		transaction, err := store.db.BeginTx(ctx, nil)
+		transaction, err := store.beginWrite(ctx)
 		if err == nil {
 			return transaction, nil
 		}

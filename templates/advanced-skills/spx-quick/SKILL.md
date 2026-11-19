@@ -72,6 +72,8 @@ overview, and require `specify-runtime execution guard` before source writes.
 Checkpoint validation and call `specify-runtime execution complete` only after
 fresh passing validation and terminal workflow state.
 
+For manual leader Work, announce `execution announce --workflow quick --subject-id <quick-id>` with the complete confirmed write scope, the Quick workspace, and `.planning/quick/index.json`. Omit `--item-id`, even for one Q1.
+
 The runtime-managed `STATUS.md` Test Design input uses
 `test_design_gate.decision: not_selected|selected|required` plus a
 `projection_binding`. For `selected` or `required`, verify the producer-built
@@ -470,6 +472,15 @@ before any clean source-changing close claim. Do not tell the user the workflow
 is complete, and do not run `quick close … resolved`, until step 3 succeeds when
 cognition is required. `item-accept` and green tests alone are not terminal
 truth; only `quick close … resolved` after cognition closeout is terminal truth.
+
+If shared apply returns `binding_scope=item`, `allowed_close=false` preserves the
+terminal gate. For a guarded manual Work whose sole accepted item covers the entire
+task, require `quick.cognition-join` via `api ensure` and run the exact argv from
+`quick status` using the current binding, Work and fence. The runtime joins the
+existing proof after rechecking source and dependency bytes, the accepted result
+and current graph receipt. With `binding_scope=joined` and `allowed_close=true`,
+resume `quick close` then `execution complete`. Multi-item work requires the
+joined leader Work. Follow existing recovery actions for stale proof or an intent.
 Report changed paths, evidence, residual risk, and
 `project_cognition_refresh`. This invocation authorizes only this workflow
 stage. Report an explicit user-selected workflow replacement as a terminal

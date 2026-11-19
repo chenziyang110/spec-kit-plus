@@ -296,10 +296,13 @@ func doNext(root string, session DoSession) (map[string]any, error) {
 		validation := doValidate(root, session, true)
 		if validation.Status == "passed" {
 			data["complete_ready"] = true
-			data["complete_input"] = map[string]any{"expected_revision": session.Revision}
-			data["complete_required"] = []string{"change_summary"}
-			data["complete_argv"] = []string{"specify-runtime", "do", "complete", session.ID, "--input-json", "-", "--format", "json"}
+			for key, value := range doCompletePacket(session) {
+				data[key] = value
+			}
 		} else {
+			if validation.sourceCloseoutReady {
+				data["source_closeout"] = doSourceCloseoutPacket(root, session, validation)
+			}
 			for _, cause := range validation.Blockers {
 				blocked = append(blocked, map[string]any{"cause": cause})
 			}
@@ -309,24 +312,35 @@ func doNext(root string, session DoSession) (map[string]any, error) {
 	return data, nil
 }
 
+func doCompletePacket(session DoSession) map[string]any {
+	return map[string]any{
+		"complete_input":    map[string]any{"expected_revision": session.Revision},
+		"complete_required": []string{"change_summary"},
+		"complete_argv":     []string{"specify-runtime", "do", "complete", session.ID, "--input-json", "-", "--format", "json"},
+	}
+}
+
 // Each session mutation has its own short lock. Publication owns the playbook
 // lock and may register metadata writes under the Do lock, so nesting the two
 // would deadlock. Existing finish and publication validators close every join.
-func doComplete(root, id string, input doCompleteInput) (DoSession, error) {
+func doComplete(root, id string, input doCompleteInput, profiles ...*doTimings) (DoSession, error) {
 	var session DoSession
+	timings := doTimingFrom(profiles)
 	if input.ExpectedRevision < 1 || strings.TrimSpace(input.ChangeSummary) == "" || len(input.ChangeSummary) > 2048 {
 		return session, fmt.Errorf("expected_revision and a bounded change_summary are required")
 	}
+	lockTiming := timings.phase("session_lock")
 	release, err := doSessionLock(root, id)
+	lockTiming()
 	if err != nil {
 		return session, err
 	}
 	session, digest, err := loadDoSession(root, id)
 	if err == nil {
-		session, err = doFinish(root, session, digest, doFinishInput{ExpectedRevision: input.ExpectedRevision, KnowledgeStatus: "pending"})
+		session, err = doFinish(root, session, digest, doFinishInput{ExpectedRevision: input.ExpectedRevision, KnowledgeStatus: "pending"}, timings)
 	}
 	if err == nil && session.KnowledgeStatus == "pending" {
-		err = doRequireWork(root, session)
+		err = doRequireWork(root, session, timings)
 	}
 	release()
 	if err != nil || session.KnowledgeStatus != "pending" {
@@ -336,7 +350,9 @@ func doComplete(root, id string, input doCompleteInput) (DoSession, error) {
 	if session.MethodBinding != nil {
 		request.ID, request.BaseDigest = session.MethodBinding.ID, session.MethodBinding.ContentDigest
 	}
+	publicationTiming := timings.phase("playbook_publication")
 	publication, err := updatePlaybook(root, request)
+	publicationTiming()
 	if err != nil {
 		return session, fmt.Errorf("execution passed; knowledge remains pending, retry complete: %w", err)
 	}
@@ -348,7 +364,9 @@ func doComplete(root, id string, input doCompleteInput) (DoSession, error) {
 	if err := decodePlaybookJSON(raw, &receipt); err != nil {
 		return session, fmt.Errorf("publication returned no usable knowledge receipt: %w", err)
 	}
+	lockTiming = timings.phase("session_lock")
 	release, err = doSessionLock(root, id)
+	lockTiming()
 	if err != nil {
 		return session, err
 	}
@@ -357,5 +375,5 @@ func doComplete(root, id string, input doCompleteInput) (DoSession, error) {
 	if err != nil {
 		return session, err
 	}
-	return doFinish(root, session, digest, doFinishInput{ExpectedRevision: session.Revision, KnowledgeStatus: "saved", Knowledge: &receipt})
+	return doFinish(root, session, digest, doFinishInput{ExpectedRevision: session.Revision, KnowledgeStatus: "saved", Knowledge: &receipt}, timings)
 }

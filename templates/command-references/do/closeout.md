@@ -48,10 +48,10 @@ For a meaningful Learning signal or manual publication, preserve this order:
    Do not publish the resolved instance as the parameterized template. An
    unchanged method still records usage and returns a receipt without creating
    another revision. Retain the returned `data.knowledge_receipt`.
-3. For manual publication, read `do show <id>` again: the method write may have advanced the session
-   revision while expanding its Work metadata scope. Finish with that current
-   `expected_revision`, `knowledge_status="saved"`, and the complete returned
-   receipt as `knowledge`. Do not synthesize its path, hash, method ID, or revision.
+3. Use the publication's `data.finish_argv` and `data.finish_input` to save the
+   exact knowledge receipt at the current session revision. On older runtimes,
+   read `do show <id>` for the post-publication revision and pass
+   `knowledge_status="saved"` with the returned receipt as `knowledge`.
 
 Use `not_applicable` with a concrete reason when no reusable method or usage
 should be retained. Capture a significant sanitized Learning signal through its runtime

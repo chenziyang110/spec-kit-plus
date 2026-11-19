@@ -29,7 +29,7 @@ var doIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$`)
 
 func runDo(args []string, stdout io.Writer) int {
 	if len(args) == 0 || args[0] == "--help" || args[0] == "help" {
-		_, _ = fmt.Fprintln(stdout, "usage: specify-runtime do prepare|start|next|record|validate|finish|complete|resume|show [session-id] [--input-json <json|->] [--project-root <root>] [--format json]\nprepare is read-only; start rechecks and freezes its input. next supplies frozen native-tool packets. complete validates and saves the method without rerunning tools. show --active resolves live Work; --section method|definition|definitions|definition:<epoch>|attempts|attempt:<id>|metrics expands selected detail. resume supports observed failure recovery or explicit unstarted adjustment. Runtime records tool observations; it never executes the operation.")
+		_, _ = fmt.Fprintln(stdout, "usage: specify-runtime do prepare|start|next|record|validate|finish|complete|resume|show [session-id] [--input-json <json|->] [--project-root <root>] [--format json]\nprepare is read-only; start rechecks and freezes its input. next supplies frozen native-tool packets. complete validates and saves the method without rerunning tools. show --active resolves live Work; --section method|definition|definitions|definition:<epoch>|attempts|attempt:<id>|metrics expands selected detail. resume supports observed failure recovery or explicit unstarted adjustment. Add --timings to start, validate, resume, finish, or complete for invocation-local measurements. Runtime records tool observations; it never executes the operation.")
 		return 0
 	}
 	for _, arg := range args[1:] {
@@ -39,18 +39,37 @@ func runDo(args []string, stdout io.Writer) int {
 	}
 	command := args[0]
 	parseArgs := append([]string(nil), args[1:]...)
-	for i, arg := range parseArgs {
-		if arg == "--active" && (i+1 == len(parseArgs) || strings.HasPrefix(parseArgs[i+1], "--")) {
+	for i := 0; i < len(parseArgs); i++ {
+		arg := parseArgs[i]
+		if (arg == "--active" || arg == "--timings") && (i+1 == len(parseArgs) || strings.HasPrefix(parseArgs[i+1], "--")) {
 			parseArgs = append(parseArgs[:i+1], append([]string{"true"}, parseArgs[i+1:]...)...)
-			break
 		}
 	}
-	parsed, err := parseCoordinationCommandArgs(parseArgs, -1, "--project-root", "--format", "--input-json", "--active", "--section", "--adapter-id")
+	parsed, err := parseCoordinationCommandArgs(parseArgs, -1, "--project-root", "--format", "--input-json", "--active", "--section", "--adapter-id", "--timings")
 	if err != nil {
 		return doError(stdout, err, "")
 	}
 	if err = parsed.validateJSONFormat(); err != nil {
 		return doError(stdout, err, "")
+	}
+	var timings *doTimings
+	if value := parsed.option("--timings", ""); value != "" {
+		switch command {
+		case "start", "resume", "validate", "finish", "complete":
+			if value != "true" {
+				return doError(stdout, fmt.Errorf("--timings is a standalone option"), "")
+			}
+			timings = newDoTimings()
+		default:
+			return doError(stdout, fmt.Errorf("--timings is available for start, resume, validate, finish, and complete"), "")
+		}
+	}
+	reportError := func(err error, id string, schemas ...string) int {
+		env := doErrorEnvelope(err, id, schemas...)
+		for key, value := range timings.envelopeData() {
+			env.Data[key] = value
+		}
+		return writeEnvelope(stdout, env)
 	}
 	active := parsed.option("--active", "")
 	if active != "" && (command != "show" || active != "true" || len(parsed.positionals) != 0 || parsed.option("--section", "") != "") {
@@ -111,11 +130,11 @@ func runDo(args []string, stdout io.Writer) int {
 			env.Data = data
 			return writeEnvelope(stdout, env)
 		}
-		session, err := doStart(root, input)
+		session, err := doStart(root, input, timings)
 		if err != nil {
-			return doError(stdout, err, input.SessionID)
+			return reportError(err, input.SessionID)
 		}
-		return doSessionEnvelope(stdout, session, "operation plan frozen; execute only through authorized native tools", nil)
+		return doSessionEnvelope(stdout, session, "operation plan frozen; execute only through authorized native tools", nil, timings.envelopeData())
 	}
 	if command == "next" {
 		session, _, err := loadDoSession(root, id)
@@ -133,11 +152,11 @@ func runDo(args []string, stdout io.Writer) int {
 		if err := doReadInput(parsed.option("--input-json", ""), &input); err != nil {
 			return doError(stdout, err, id)
 		}
-		session, err := doComplete(root, id, input)
+		session, err := doComplete(root, id, input, timings)
 		if err != nil {
-			return doError(stdout, err, id)
+			return reportError(err, id)
 		}
-		return doSessionEnvelope(stdout, session, "operation and method closeout completed", nil)
+		return doSessionEnvelope(stdout, session, "operation and method closeout completed", nil, timings.envelopeData())
 	}
 	if command == "show" || command == "validate" || (command == "resume" && parsed.option("--input-json", "") == "") {
 		session, _, err := loadDoSession(root, id)
@@ -145,8 +164,8 @@ func runDo(args []string, stdout io.Writer) int {
 			return doError(stdout, err, id)
 		}
 		if command == "validate" {
-			validation := doValidate(root, session, true)
-			return doSessionEnvelope(stdout, session, "operation evidence checked; tool observations remain agent-observed", &validation)
+			validation := doValidate(root, session, true, timings)
+			return doSessionEnvelope(stdout, session, "operation evidence checked; tool observations remain agent-observed", &validation, timings.envelopeData())
 		}
 		section := parsed.option("--section", "")
 		if section != "" {
@@ -199,14 +218,16 @@ func runDo(args []string, stdout io.Writer) int {
 			}
 			return doSessionEnvelope(stdout, session, "selected operation detail", nil, extra)
 		}
-		return doSessionEnvelope(stdout, session, "operation state; inspect interrupted side effects before retrying", nil)
+		return doSessionEnvelope(stdout, session, "operation state; inspect interrupted side effects before retrying", nil, timings.envelopeData())
 	}
 	if command != "record" && command != "finish" && command != "resume" {
 		return doError(stdout, fmt.Errorf("unknown do subcommand %q", command), id)
 	}
+	lockTiming := timings.phase("session_lock")
 	release, err := doSessionLock(root, id)
+	lockTiming()
 	if err != nil {
-		return doError(stdout, err, id)
+		return reportError(err, id)
 	}
 	defer release()
 	session, digest, err := loadDoSession(root, id)
@@ -222,18 +243,18 @@ func runDo(args []string, stdout io.Writer) int {
 	case "finish":
 		var input doFinishInput
 		if err = doReadInput(parsed.option("--input-json", ""), &input); err == nil {
-			session, err = doFinish(root, session, digest, input)
+			session, err = doFinish(root, session, digest, input, timings)
 		}
 	case "resume":
 		var input doResumeInput
 		if err = doReadInput(parsed.option("--input-json", ""), &input); err == nil {
-			session, err = doResume(root, session, digest, input)
+			session, err = doResume(root, session, digest, input, timings)
 		}
 	}
 	if err != nil {
-		return doError(stdout, err, id)
+		return reportError(err, id)
 	}
-	return doSessionEnvelope(stdout, session, "operation checkpoint saved", nil)
+	return doSessionEnvelope(stdout, session, "operation checkpoint saved", nil, timings.envelopeData())
 }
 
 func doReadInput(raw string, target any) error {
@@ -269,6 +290,10 @@ func doReadInput(raw string, target any) error {
 }
 
 func doError(stdout io.Writer, err error, id string, schemas ...string) int {
+	return writeEnvelope(stdout, doErrorEnvelope(err, id, schemas...))
+}
+
+func doErrorEnvelope(err error, id string, schemas ...string) Envelope {
 	env := NewEnvelope("blocked", "operation cannot advance")
 	resume := "correct the input and retry the same operation; no session was created"
 	if doIDPattern.MatchString(id) {
@@ -307,7 +332,7 @@ func doError(stdout io.Writer, err error, id string, schemas ...string) int {
 	if doIDPattern.MatchString(id) {
 		env.ShowArgv = []string{"specify-runtime", "do", "show", id, "--format", "json"}
 	}
-	return writeEnvelope(stdout, env)
+	return env
 }
 
 func doSessionEnvelope(stdout io.Writer, session DoSession, summary string, validation *DoValidation, extra ...map[string]any) int {
@@ -579,7 +604,8 @@ func doScopeContains(scope []string, p string) bool {
 	return false
 }
 
-func doStart(root string, input doStartInput) (DoSession, error) {
+func doStart(root string, input doStartInput, profiles ...*doTimings) (DoSession, error) {
+	timings := doTimingFrom(profiles)
 	if input.Command != nil {
 		return DoSession{}, fmt.Errorf("command is prepare-only; pass the canonical start_input returned by do prepare")
 	}
@@ -643,7 +669,9 @@ func doStart(root string, input doStartInput) (DoSession, error) {
 	if !doIDPattern.MatchString(id) {
 		return empty, fmt.Errorf("invalid session id")
 	}
+	lockTiming := timings.phase("session_lock")
 	release, err := doSessionLock(root, id)
+	lockTiming()
 	if err != nil {
 		return empty, err
 	}
@@ -692,14 +720,21 @@ func doStart(root string, input doStartInput) (DoSession, error) {
 	if err := doValidateOperationScopes(input.Definition, input.WriteScope, input.OutputScope); err != nil {
 		return empty, err
 	}
-	sources, fingerprint, sourceRevision, dirty, err := doCaptureSource(root, input.Definition, input.WriteScope)
+	workspace, err := doWorkspaceStatus(root, timings)
 	if err != nil {
 		return empty, err
 	}
-	baseline, err := runcontrol.CaptureWorkspaceBaseline(context.Background(), root)
+	sources, fingerprint, sourceRevision, dirty, err := doCaptureSourceAt(root, input.Definition, workspace, timings, input.WriteScope)
 	if err != nil {
 		return empty, err
 	}
+	baselineTiming := timings.phase("workspace_baseline")
+	baseline, err := workspace.CaptureBaseline()
+	baselineTiming()
+	if err != nil {
+		return empty, err
+	}
+	timings.count("baseline_path_digests", int64(len(baseline.PathDigests)))
 	baselineJSON, err := runcontrol.EncodeWorkspaceBaseline(baseline)
 	if err != nil {
 		return empty, err
@@ -743,15 +778,20 @@ func doStart(root string, input doStartInput) (DoSession, error) {
 			intents = append(intents, runcontrol.WriteIntentSpec{Path: p, Operation: runcontrol.WriteModify, Confidence: runcontrol.IntentConfirmed, Reason: "frozen Do operation scope"})
 		}
 	}
-	store, err := runcontrol.OpenForRepository(context.Background(), root)
+	workTiming := timings.phase("work_board")
+	ctx := timings.workContext()
+	store, err := runcontrol.OpenForRepository(ctx, root)
 	if err != nil {
+		workTiming()
 		return empty, err
 	}
 	defer store.Close()
-	if _, err = store.ReconcileRepositoryWork(context.Background(), time.Now().UTC()); err != nil {
+	if _, err = store.ReconcileRepositoryWork(ctx, time.Now().UTC()); err != nil {
+		workTiming()
 		return empty, err
 	}
-	work, _, err := store.BeginWork(context.Background(), runcontrol.BeginWorkParams{WorkID: "work-" + id, TaskRef: "do:" + id, Summary: input.Goal, AgentID: input.AgentID, AdapterID: input.AdapterID, WorkspaceRoot: root, BaseCommit: baseline.HeadCommit, NextAction: "record a started attempt before native execution", LeaseUntil: time.Now().UTC().Add(30 * time.Minute), WriteIntents: intents})
+	work, _, err := store.BeginWork(ctx, runcontrol.BeginWorkParams{WorkID: "work-" + id, TaskRef: "do:" + id, Summary: input.Goal, AgentID: input.AgentID, AdapterID: input.AdapterID, WorkspaceRoot: root, BaseCommit: baseline.HeadCommit, NextAction: "record a started attempt before native execution", LeaseUntil: time.Now().UTC().Add(30 * time.Minute), WriteIntents: intents})
+	workTiming()
 	if err != nil {
 		return empty, err
 	}
@@ -763,6 +803,15 @@ func doStart(root string, input doStartInput) (DoSession, error) {
 }
 
 func doCaptureSource(root string, definition PlaybookDefinition, writeScopes ...[]string) (map[string]string, string, string, []string, error) {
+	workspace, err := doWorkspaceStatus(root, nil)
+	if err != nil {
+		return nil, "", "", nil, err
+	}
+	return doCaptureSourceAt(root, definition, workspace, nil, writeScopes...)
+}
+
+func doCaptureSourceAt(root string, definition PlaybookDefinition, workspace runcontrol.WorkspaceStatus, timings *doTimings, writeScopes ...[]string) (map[string]string, string, string, []string, error) {
+	defer timings.phase("source_fingerprint")()
 	sources, err := playbookSourceFingerprint(root, definition)
 	if err != nil {
 		return nil, "", "", nil, err
@@ -816,16 +865,12 @@ func doCaptureSource(root string, definition PlaybookDefinition, writeScopes ...
 			}
 		}
 	}
-	head, err := runcontrol.ReadHeadCommit(context.Background(), root)
-	if err != nil {
+	head := workspace.HeadCommit
+	if head == "" {
 		head = "unborn"
 	}
-	dirty, err := runcontrol.InspectWorkspaceChanges(context.Background(), root)
-	if err != nil {
-		return nil, "", "", nil, err
-	}
 	relevant := []string{}
-	for _, p := range dirty {
+	for _, p := range workspace.DirtyPaths {
 		for source := range sources {
 			if p == source || strings.HasPrefix(p, source+"/") {
 				relevant = append(relevant, p)
@@ -838,24 +883,29 @@ func doCaptureSource(root string, definition PlaybookDefinition, writeScopes ...
 	if err != nil {
 		return nil, "", "", nil, err
 	}
+	timings.count("source_paths", int64(len(sources)))
+	timings.count("external_inputs", int64(len(definition.ExternalInputs)))
 	fingerprint := doSourceDigest(sources, head, relevant, external)
 	return sources, fingerprint, head, relevant, nil
 }
 
-func doRequireWork(root string, session DoSession) error {
-	store, err := runcontrol.OpenForRepository(context.Background(), root)
+func doRequireWork(root string, session DoSession, profiles ...*doTimings) error {
+	timings := doTimingFrom(profiles)
+	defer timings.phase("work_board")()
+	ctx := timings.workContext()
+	store, err := runcontrol.OpenForRepository(ctx, root)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	work, _, err := store.GetWork(context.Background(), session.WorkID)
+	work, _, err := store.GetWork(ctx, session.WorkID)
 	if err != nil {
 		return err
 	}
 	if work.Fence != session.WorkFence || work.TaskRef != "do:"+session.ID || work.Status != runcontrol.WorkActive {
 		return fmt.Errorf("Work ownership is not active or its fence changed; use Work recovery before mutating the session")
 	}
-	_, err = store.RenewWorkLease(context.Background(), runcontrol.RenewWorkLeaseParams{WorkID: work.WorkID, Fence: work.Fence, LeaseUntil: time.Now().UTC().Add(30 * time.Minute)})
+	_, err = store.RenewWorkLease(ctx, runcontrol.RenewWorkLeaseParams{WorkID: work.WorkID, Fence: work.Fence, LeaseUntil: time.Now().UTC().Add(30 * time.Minute)})
 	return err
 }
 
@@ -907,12 +957,12 @@ func doRecord(root string, session DoSession, oldDigest string, input doRecordIn
 	return session, err
 }
 
-func doResume(root string, session DoSession, oldDigest string, input doResumeInput) (DoSession, error) {
+func doResume(root string, session DoSession, oldDigest string, input doResumeInput, profiles ...*doTimings) (DoSession, error) {
 	if input.ExternalChanges != nil {
 		return doResumeExternalChanges(root, session, oldDigest, input)
 	}
 	if input.Replan != nil {
-		return doReplan(root, session, oldDigest, input)
+		return doReplan(root, session, oldDigest, input, doTimingFrom(profiles))
 	}
 	if input.Recovery.EvidenceSHA256 != "" {
 		return session, fmt.Errorf("recovery evidence_sha256 is runtime-owned")
@@ -972,7 +1022,8 @@ func doResume(root string, session DoSession, oldDigest string, input doResumeIn
 	return session, doWriteSession(root, session, oldDigest, extra)
 }
 
-func doFinish(root string, session DoSession, oldDigest string, input doFinishInput) (DoSession, error) {
+func doFinish(root string, session DoSession, oldDigest string, input doFinishInput, profiles ...*doTimings) (DoSession, error) {
+	timings := doTimingFrom(profiles)
 	if input.Blocker != nil {
 		return doBlockFinish(root, session, oldDigest, input)
 	}
@@ -986,12 +1037,12 @@ func doFinish(root string, session DoSession, oldDigest string, input doFinishIn
 		return session, fmt.Errorf("only saved knowledge may carry its verified receipt")
 	}
 	if session.ExecutionOutcome == "passed" && ((input.KnowledgeStatus == "pending") || (session.KnowledgeStatus == input.KnowledgeStatus && reflect.DeepEqual(session.Knowledge, input.Knowledge))) {
-		validation := doValidate(root, session, true)
+		validation := doValidate(root, session, true, timings)
 		if validation.Status != "passed" {
 			return session, fmt.Errorf("previous completion is stale: %s", strings.Join(validation.Blockers, "; "))
 		}
 		if session.KnowledgeStatus != "pending" {
-			if err := doReleaseFinishedWork(root, session); err != nil {
+			if err := doReleaseFinishedWork(root, session, timings); err != nil {
 				return session, err
 			}
 		}
@@ -1000,11 +1051,11 @@ func doFinish(root string, session DoSession, oldDigest string, input doFinishIn
 	if input.ExpectedRevision != session.Revision {
 		return session, fmt.Errorf("session revision conflict")
 	}
-	validation := doValidate(root, session, true)
+	validation := doValidate(root, session, true, timings)
 	if validation.Status != "passed" {
 		return session, fmt.Errorf("validation incomplete: %s", strings.Join(validation.Blockers, "; "))
 	}
-	if err := doRequireWork(root, session); err != nil {
+	if err := doRequireWork(root, session, timings); err != nil {
 		return session, err
 	}
 	if input.KnowledgeStatus == "" {
@@ -1034,20 +1085,22 @@ func doFinish(root string, session DoSession, oldDigest string, input doFinishIn
 		return session, err
 	}
 	if input.KnowledgeStatus != "pending" {
-		if err := doReleaseFinishedWork(root, session); err != nil {
+		if err := doReleaseFinishedWork(root, session, timings); err != nil {
 			return session, err
 		}
 	}
 	return session, nil
 }
 
-func doReleaseFinishedWork(root string, session DoSession) error {
-	store, err := runcontrol.OpenForRepository(context.Background(), root)
+func doReleaseFinishedWork(root string, session DoSession, timings *doTimings) error {
+	defer timings.phase("work_board")()
+	ctx := timings.workContext()
+	store, err := runcontrol.OpenForRepository(ctx, root)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	work, _, err := store.GetWork(context.Background(), session.WorkID)
+	work, _, err := store.GetWork(ctx, session.WorkID)
 	if err != nil {
 		return err
 	}
@@ -1057,7 +1110,7 @@ func doReleaseFinishedWork(root string, session DoSession) error {
 	if work.Status == runcontrol.WorkCompleted {
 		return nil
 	}
-	_, err = store.TransitionWork(context.Background(), runcontrol.TransitionWorkParams{WorkID: work.WorkID, ExpectedRevision: work.Revision, Fence: session.WorkFence, Target: runcontrol.WorkCompleted, Reason: "Do required operation checks and knowledge closeout completed"})
+	_, err = store.TransitionWork(ctx, runcontrol.TransitionWorkParams{WorkID: work.WorkID, ExpectedRevision: work.Revision, Fence: session.WorkFence, Target: runcontrol.WorkCompleted, Reason: "Do required operation checks and knowledge closeout completed"})
 	return err
 }
 

@@ -230,6 +230,14 @@ that lookup to an integration. Multiple matches are an ambiguity blocker;
 directory timestamps are never a selector. An exact ID is required when the
 host/workflow cannot identify one unambiguous operation.
 
+Add `--timings` to `do start`, `do validate`, a `do resume` replan,
+`do finish`, or `do complete` for `data.timings`. It reports invocation time,
+phase times and counts for Git status, workspace baseline or delta, source
+fingerprints, Work transactions and artifact evidence as applicable. Phases
+can nest, and Work write lock time includes acquiring the SQLite connection.
+Timings stay out of the session and contain no file paths or protected input
+values. Measure native tools separately.
+
 ## Reusable method definition
 
 A method contains identity, goal, title, aliases, applicability, project-relative
@@ -492,8 +500,14 @@ then call complete from a fresh revision or continue manual update/finish.
 Ordinary complete does not create a lesson merely because the operation passed.
 
 Authorized source/script/configuration changes require canonical `sp-do`
-cognition closeout with actual changed paths and exact session scope. Follow the
-existing planner-first cognition route and receipt contract. The runtime freezes
+cognition closeout with actual changed paths and exact session scope. When that
+is the remaining gate, `do next` returns `data.source_closeout` with the live
+binding and planner or recovery argv. Run the planner from the project root.
+Complete its agent-owned fields from actual observations and run its
+`apply_argv`. Successful apply or replay supplies `data.do_continuation` with
+the current revision and input for `do complete`. Manual `playbook update`
+also returns the subsequent `finish_argv` and `finish_input` when knowledge
+is pending. The runtime freezes
 the Do source and definition epoch into the existing cognition intent before
 refreshing the graph; its receipt retains that binding. The cognition writer
 claims its exact database, status, receipt and intent paths on the same Work.
@@ -539,6 +553,12 @@ actual public calls for complete versus explicit finish/update/finish, verifies
 unchanged canonical method bytes, and reports each adapter episode's elapsed
 time. These are local fixture observations, excluding model thinking and any
 claim of general speed or accuracy improvement.
+
+The same probe includes a large Git workspace with a small declared scope for
+output-only and retained-source builds. It reports CLI phase times, native tool
+time and total time to the expected validation or source closeout gate, and
+checks that replacing the output with different bytes of the same size
+invalidates the recorded evidence.
 
 The integration test uses the same probe with the built runtime:
 

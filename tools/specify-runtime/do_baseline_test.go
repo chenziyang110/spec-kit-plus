@@ -116,7 +116,11 @@ func TestDoBaselineAuditsChangesToInitiallyDirtyBackgroundPaths(t *testing.T) {
 			if got := doValidate(root, loaded, true); got.Status == "passed" || !strings.Contains(strings.Join(got.Blockers, " "), name) {
 				t.Fatalf("lost full workspace audit after %s: %+v", mutation, got)
 			}
-			if err := doReplanRejectRetroactiveScope(root, loaded, nil, []string{"out", name}); err == nil {
+			workspace, err := doWorkspaceStatus(root, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := doReplanRejectRetroactiveScope(workspace, loaded, nil, []string{"out", name}, nil); err == nil {
 				t.Fatal("baseline sidecar allowed retroactive authorization")
 			}
 		})

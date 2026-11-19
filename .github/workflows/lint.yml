@@ -13,10 +13,45 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Find changed Markdown files
+        id: markdown
+        shell: bash
+        env:
+          MARKDOWN_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # Lint changed files without making historical Markdown issues a CI gate.
+          if [[ -z "$MARKDOWN_BASE" || "$MARKDOWN_BASE" =~ ^0+$ ]]; then
+            MARKDOWN_BASE=$(git hash-object -t tree -w --stdin </dev/null)
+          fi
+          changed=$(mktemp)
+          trap 'rm -f "$changed"' EXIT
+          git diff --name-only --no-renames --diff-filter=AMT -z "$MARKDOWN_BASE" HEAD -- \
+            '*.md' ':(exclude)extensions/**' ':(exclude).genreleases/**' > "$changed"
+          mapfile -d '' -t files < "$changed"
+          if (( ${#files[@]} == 0 )); then
+            echo 'No changed Markdown files to lint.'
+          else
+            for file in "${files[@]}"; do
+              if [[ ! -f "$file" || -L "$file" || "$file" == *$'\n'* || "$file" == *$'\r'* ]]; then
+                printf 'Cannot lint Markdown path %q\n' "$file" >&2
+                exit 1
+              fi
+            done
+            printf 'Selected %d changed Markdown files.\n' "${#files[@]}"
+            {
+              echo 'globs<<MarkdownFiles'
+              # The colon prefix passes a literal path to markdownlint-cli2.
+              printf ':%s\n' "${files[@]}"
+              echo 'MarkdownFiles'
+            } >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Run markdownlint-cli2
+        if: steps.markdown.outputs.globs != ''
         uses: DavidAnson/markdownlint-cli2-action@696eb3f2509270d7b882d2aa68347bc676e7af34 # v25.0.0
         with:
-          globs: |
-            '**/*.md'
-            !extensions/**/*.md
+          globs: ${{ steps.markdown.outputs.globs }}

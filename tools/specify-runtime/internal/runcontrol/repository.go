@@ -47,6 +47,14 @@ type WorkspaceBaseline struct {
 	ScopeAmendments      []ExecutionScopeAmendment    `json:"scope_amendments,omitempty"`
 }
 
+// WorkspaceStatus is one in-memory Git observation. It is shared only within
+// a single operation; a new verification or a scope change must reread it.
+type WorkspaceStatus struct {
+	workspaceRoot string
+	HeadCommit    string
+	DirtyPaths    []string
+}
+
 type WorkflowControlPlaneBinding struct {
 	FeatureRef    string `json:"feature_ref"`
 	WorkflowRef   string `json:"workflow_ref"`
@@ -253,26 +261,38 @@ func InspectWorkspaceChanges(ctx context.Context, workspaceRoot string) ([]strin
 	return paths, nil
 }
 
-func CaptureWorkspaceBaseline(ctx context.Context, workspaceRoot string) (WorkspaceBaseline, error) {
+func ReadWorkspaceStatus(ctx context.Context, workspaceRoot string) (WorkspaceStatus, error) {
 	headCommit, err := ReadHeadCommit(ctx, workspaceRoot)
 	if err != nil {
-		// An initialized but unborn repository has no HEAD yet. The canonical
-		// empty-tree object keeps later committed-path comparison deterministic.
-		headCommit = emptyGitTreeOID
+		headCommit = ""
 	}
 	dirtyPaths, err := InspectWorkspaceChanges(ctx, workspaceRoot)
+	return WorkspaceStatus{workspaceRoot: workspaceRoot, HeadCommit: headCommit, DirtyPaths: dirtyPaths}, err
+}
+
+func CaptureWorkspaceBaseline(ctx context.Context, workspaceRoot string) (WorkspaceBaseline, error) {
+	status, err := ReadWorkspaceStatus(ctx, workspaceRoot)
 	if err != nil {
 		return WorkspaceBaseline{}, fmt.Errorf("capture workspace baseline paths: %w", err)
 	}
-	digests := make(map[string]string, len(dirtyPaths))
-	for _, path := range dirtyPaths {
-		digest, digestErr := workspacePathDigest(workspaceRoot, path)
+	return status.CaptureBaseline()
+}
+
+func (status WorkspaceStatus) CaptureBaseline() (WorkspaceBaseline, error) {
+	head := status.HeadCommit
+	if head == "" {
+		// Keep later committed-path comparisons deterministic for unborn HEAD.
+		head = emptyGitTreeOID
+	}
+	digests := make(map[string]string, len(status.DirtyPaths))
+	for _, path := range status.DirtyPaths {
+		digest, digestErr := workspacePathDigest(status.workspaceRoot, path)
 		if digestErr != nil {
 			return WorkspaceBaseline{}, fmt.Errorf("capture baseline digest for %q: %w", path, digestErr)
 		}
 		digests[path] = digest
 	}
-	return WorkspaceBaseline{HeadCommit: headCommit, DirtyPaths: dirtyPaths, PathDigests: digests}, nil
+	return WorkspaceBaseline{HeadCommit: head, DirtyPaths: status.DirtyPaths, PathDigests: digests}, nil
 }
 
 func isDoSessionRuntimeLockPath(pathKey string) bool {
@@ -326,6 +346,15 @@ func EncodeWorkspaceBaseline(baseline WorkspaceBaseline) (string, error) {
 // baseline. Known private runtime transport paths are excluded only here;
 // ownership recovery must continue to use the unfiltered InspectWorkspaceChanges.
 func InspectWorkspaceDelta(ctx context.Context, workspaceRoot, baselineJSON string) ([]string, error) {
+	status, err := ReadWorkspaceStatus(ctx, workspaceRoot)
+	if err != nil {
+		return nil, err
+	}
+	return status.InspectDelta(ctx, baselineJSON)
+}
+
+func (status WorkspaceStatus) InspectDelta(ctx context.Context, baselineJSON string) ([]string, error) {
+	workspaceRoot := status.workspaceRoot
 	var baseline WorkspaceBaseline
 	if err := json.Unmarshal([]byte(strings.TrimSpace(baselineJSON)), &baseline); err != nil {
 		return nil, fmt.Errorf("decode workspace baseline: %w", err)
@@ -333,14 +362,11 @@ func InspectWorkspaceDelta(ctx context.Context, workspaceRoot, baselineJSON stri
 	if strings.TrimSpace(baseline.HeadCommit) == "" {
 		return nil, fmt.Errorf("%w: workspace baseline has no head commit", ErrInvalidArgument)
 	}
-	committed, err := inspectCommittedWorkspacePaths(ctx, workspaceRoot, baseline.HeadCommit)
+	committed, err := inspectCommittedWorkspacePaths(ctx, workspaceRoot, baseline.HeadCommit, status.HeadCommit)
 	if err != nil {
 		return nil, err
 	}
-	dirty, err := InspectWorkspaceChanges(ctx, workspaceRoot)
-	if err != nil {
-		return nil, err
-	}
+	dirty := status.DirtyPaths
 	type baselinePathState struct {
 		path   string
 		digest string
@@ -376,12 +402,20 @@ func InspectWorkspaceDelta(ctx context.Context, workspaceRoot, baselineJSON stri
 		if isPrivateRuntimeDeltaPath(key) {
 			continue
 		}
+		currentDirtyKeys[key] = struct{}{}
+		baselineState, existed := baselineByKey[key]
+		if !existed {
+			// Git already establishes that this path is new to the dirty set.
+			// There is no baseline digest to compare. Workflows still verify
+			// their own source and output bytes before accepting evidence.
+			seen[key] = path
+			continue
+		}
 		digest, digestErr := workspacePathDigest(workspaceRoot, path)
 		if digestErr != nil {
 			return nil, fmt.Errorf("inspect current digest for %q: %w", path, digestErr)
 		}
-		currentDirtyKeys[key] = struct{}{}
-		if baselineState, existed := baselineByKey[key]; existed && baselineState.digest == digest {
+		if baselineState.digest == digest {
 			continue
 		}
 		seen[key] = path
@@ -470,15 +504,15 @@ func isWorkflowMutationReceiptPath(pathKey string) bool {
 	return true
 }
 
-func inspectCommittedWorkspacePaths(ctx context.Context, workspaceRoot, baseCommit string) ([]string, error) {
-	if _, err := ReadHeadCommit(ctx, workspaceRoot); err != nil {
+func inspectCommittedWorkspacePaths(ctx context.Context, workspaceRoot, baseCommit, headCommit string) ([]string, error) {
+	if headCommit == "" || headCommit == baseCommit {
 		return []string{}, nil
 	}
 	output, err := runtimecmd.CommandOutputContext(
 		ctx,
 		workspaceRoot,
 		nil,
-		"git", "diff", "--name-status", "-z", "--find-renames", baseCommit+"..HEAD",
+		"git", "diff", "--name-status", "-z", "--find-renames", baseCommit+".."+headCommit,
 	)
 	if err != nil {
 		if contextErr := ctx.Err(); contextErr != nil {

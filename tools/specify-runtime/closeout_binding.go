@@ -328,7 +328,8 @@ func closeoutBindingNative(root, workflow, scope, workID string) (closeoutBindin
 		return binding, err
 	}
 	for _, intent := range intents {
-		if intent.Confidence == runcontrol.IntentConfirmed && (intent.Status == runcontrol.WriteIntentActive || intent.Status == runcontrol.WriteIntentReleased) && closeoutBindingProductPath(intent.Path, scope) {
+		if intent.Confidence == runcontrol.IntentConfirmed && (intent.Status == runcontrol.WriteIntentActive || intent.Status == runcontrol.WriteIntentReleased) &&
+			closeoutBindingProductPath(intent.Path, scope) && !(workflow == "sp-quick" && isQuickDerivedIndex(intent.Path, scope)) {
 			binding.WriteScope = append(binding.WriteScope, intent.Path)
 		}
 	}
@@ -476,7 +477,7 @@ func closeoutBindingNative(root, workflow, scope, workID string) (closeoutBindin
 		}
 		binding.OwnedDelta = binding.DoBinding.ChangedPaths
 	}
-	return binding, nil
+	return excludeQuickDerivedIndex(binding), nil
 }
 
 func sameCloseoutBindingJSON(a, b any) bool {
@@ -810,6 +811,7 @@ func checkCloseoutBinding(root string, binding closeoutBinding, workflow, scope,
 	if err != nil {
 		return err
 	}
+	binding = excludeQuickDerivedIndex(binding)
 	for _, row := range []struct {
 		name               string
 		expected, observed any

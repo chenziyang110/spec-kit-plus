@@ -55,6 +55,10 @@ func doVerifyArtifactReceipt(root string, ref DoResultRef) error {
 	if err != nil {
 		return err
 	}
+	return doVerifyArtifactReceiptBytes(root, ref, raw)
+}
+
+func doVerifyArtifactReceiptBytes(root string, ref DoResultRef, raw []byte) error {
 	if len(raw) > 4096 || doBytesDigest(raw) != ref.SnapshotSHA256 {
 		return fmt.Errorf("file artifact receipt changed")
 	}

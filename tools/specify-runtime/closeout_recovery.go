@@ -696,5 +696,7 @@ func replaySelectedCloseoutIntent(paths rt.Paths, args []string, stdout io.Write
 	absScope, _, _ := resolveCloseoutApplyScope(paths.Root, intent.Scope)
 	env := NewEnvelope("ok", "selected project cognition closeout replayed")
 	env.Data = map[string]any{"closeout_status": "recorded", "intent_id": id, "workflow": intent.Workflow, "scope": intent.Scope, "update_id": updateID, "resumed_from_intent": true, "closeout_state": receipt.ResultState, "allowed_close": mutationCognitionReceiptAllowedClose(absScope, receipt)}
+	projectQuickCloseoutApply(&env, absScope)
+	doAddCognitionContinuation(paths.Root, receipt.DoBinding, env.Data)
 	return writeEnvelope(stdout, env)
 }

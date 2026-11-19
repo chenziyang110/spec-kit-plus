@@ -144,7 +144,8 @@ func doValidateDefinitionHistory(root string, session DoSession) error {
 	return doValidateRetainedBindings(session)
 }
 
-func doReplan(root string, session DoSession, oldDigest string, input doResumeInput) (DoSession, error) {
+func doReplan(root string, session DoSession, oldDigest string, input doResumeInput, profiles ...*doTimings) (DoSession, error) {
+	timings := doTimingFrom(profiles)
 	if input.Replan == nil || !doIDPattern.MatchString(input.Replan.RequestID) {
 		return session, fmt.Errorf("replan requires a valid request_id and replacement definition")
 	}
@@ -288,10 +289,14 @@ func doReplan(root string, session DoSession, oldDigest string, input doResumeIn
 	if err := doValidateOperationScopes(definition, writeScope, outputScope); err != nil {
 		return session, err
 	}
-	if err := doReplanRejectRetroactiveScope(root, session, writeScope, outputScope); err != nil {
+	workspace, err := doWorkspaceStatus(root, timings)
+	if err != nil {
 		return session, err
 	}
-	sources, fingerprint, sourceRevision, dirty, err := doCaptureSource(root, definition, writeScope)
+	if err := doReplanRejectRetroactiveScope(workspace, session, writeScope, outputScope, timings); err != nil {
+		return session, err
+	}
+	sources, fingerprint, sourceRevision, dirty, err := doCaptureSourceAt(root, definition, workspace, timings, writeScope)
 	if err != nil {
 		return session, err
 	}
@@ -303,10 +308,14 @@ func doReplan(root string, session DoSession, oldDigest string, input doResumeIn
 	if err != nil {
 		return session, err
 	}
-	if err := doReplanClaimScopes(root, session, writeScope, outputScope); err != nil {
+	if err := doReplanClaimScopes(root, session, writeScope, outputScope, timings); err != nil {
 		return session, err
 	}
-	if _, currentFingerprint, _, _, err := doCaptureSource(root, definition, writeScope); err != nil || currentFingerprint != fingerprint {
+	currentWorkspace, err := doWorkspaceStatus(root, timings)
+	if err != nil {
+		return session, err
+	}
+	if _, currentFingerprint, _, _, err := doCaptureSourceAt(root, definition, currentWorkspace, timings, writeScope); err != nil || currentFingerprint != fingerprint {
 		return session, fmt.Errorf("source changed while replan claimed its scope; inspect the new source before retrying")
 	}
 	doEnsureDefinitionHistory(&session)
@@ -439,7 +448,7 @@ func doReplanScope(root string, previous, requested []string) ([]string, error) 
 
 func doValidateOperationScopes(definition PlaybookDefinition, writeScope, outputScope []string) error {
 	sources := append([]string{}, definition.SourceFiles...)
-	for _, step := range definition.Steps {
+	for stepIndex, step := range definition.Steps {
 		if step.NativeAction != nil && step.NativeAction.Kind == "file" && step.SideEffect != "read" {
 			target := step.NativeAction.Target
 			if !doScopeContains(outputScope, target) && !doScopeContains(step.SourceWrites, target) {
@@ -449,18 +458,18 @@ func doValidateOperationScopes(definition PlaybookDefinition, writeScope, output
 		if step.ScriptRef != "" {
 			sources = append(sources, step.ScriptRef)
 		}
-		for _, p := range step.SourceWrites {
+		for writeIndex, p := range step.SourceWrites {
 			if !doScopeContains(writeScope, p) {
-				return fmt.Errorf("step %s source_writes must remain inside the explicit write_scope", step.ID)
+				return fmt.Errorf("step %s source_writes must remain inside the explicit write_scope: pointer=/steps/%d/source_writes/%d", step.ID, stepIndex, writeIndex)
 			}
 		}
 	}
-	for _, check := range definition.Checks {
+	for checkIndex, check := range definition.Checks {
 		if check.ScriptRef != "" {
 			sources = append(sources, check.ScriptRef)
 		}
 		if check.ResultPath != "" && !doScopeContains(outputScope, check.ResultPath) && !doScopeContains(writeScope, check.ResultPath) {
-			return fmt.Errorf("check result %s must be in an explicit output/write scope", check.ResultPath)
+			return fmt.Errorf("check result must be in an explicit output/write scope: pointer=/checks/%d/result_path", checkIndex)
 		}
 	}
 	for _, output := range outputScope {
@@ -478,8 +487,9 @@ func doValidateOperationScopes(definition PlaybookDefinition, writeScope, output
 	return nil
 }
 
-func doReplanRejectRetroactiveScope(root string, session DoSession, writeScope, outputScope []string) error {
-	changed, err := runcontrol.InspectWorkspaceDelta(context.Background(), root, session.BaselineJSON)
+func doReplanRejectRetroactiveScope(workspace runcontrol.WorkspaceStatus, session DoSession, writeScope, outputScope []string, timings *doTimings) error {
+	defer timings.phase("workspace_delta")()
+	changed, err := workspace.InspectDelta(context.Background(), session.BaselineJSON)
 	if err != nil {
 		return err
 	}
@@ -494,13 +504,15 @@ func doReplanRejectRetroactiveScope(root string, session DoSession, writeScope, 
 	return nil
 }
 
-func doReplanClaimScopes(root string, session DoSession, writeScope, outputScope []string) error {
-	store, err := runcontrol.OpenForRepository(context.Background(), root)
+func doReplanClaimScopes(root string, session DoSession, writeScope, outputScope []string, timings *doTimings) error {
+	defer timings.phase("work_board")()
+	ctx := timings.workContext()
+	store, err := runcontrol.OpenForRepository(ctx, root)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	work, intents, err := store.GetWork(context.Background(), session.WorkID)
+	work, intents, err := store.GetWork(ctx, session.WorkID)
 	if err != nil {
 		return err
 	}
@@ -526,6 +538,6 @@ func doReplanClaimScopes(root string, session DoSession, writeScope, outputScope
 	if !changed {
 		return nil
 	}
-	_, _, err = store.ClaimWorkIntents(context.Background(), runcontrol.ClaimWorkIntentsParams{WorkID: work.WorkID, ExpectedRevision: work.Revision, Fence: session.WorkFence, Specs: specs})
+	_, _, err = store.ClaimWorkIntents(ctx, runcontrol.ClaimWorkIntentsParams{WorkID: work.WorkID, ExpectedRevision: work.Revision, Fence: session.WorkFence, Specs: specs})
 	return err
 }

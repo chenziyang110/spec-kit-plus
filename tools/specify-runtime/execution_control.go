@@ -124,6 +124,11 @@ func executionAnnounce(args []string, stdout io.Writer) int {
 	}
 	env := NewEnvelope("ok", "execution activity announced before claim")
 	env.Data["execution_activity"] = executionRegistrationDTO(registration)
+	if registration.Activity.Workflow == runcontrol.ExecutionWorkflowQuick && registration.Activity.ItemID != "" && parsed.packet == nil {
+		env.Data["quick_binding_scope"] = "item"
+		env.Data["quick_joined_work_usage"] = fmt.Sprintf("specify-runtime execution announce --workflow quick --subject-id %s --summary <summary> --agent-id <agent> --adapter-id <adapter> --planned-write-scope-json <whole-task-scope> --format json", registration.Activity.SubjectID)
+		env.Data["quick_joined_work_guidance"] = "This Work is item-scoped. When announcing the leader's Quick Work before guard, omit --item-id and include the full task write scope, its workspace, and .planning/quick/index.json. If a guarded single-item task already has a recorded item closeout, use its quick status recovery command."
+	}
 	env.ShowArgv = executionShowArgv(registration.Activity.ActivityID, projectRoot)
 	env.NextArgv = []string{"specify-runtime", "execution", "overview", "--current-work-id", registration.Work.WorkID, "--project-root", projectRoot, "--format", "json"}
 	return writeEnvelope(stdout, env)

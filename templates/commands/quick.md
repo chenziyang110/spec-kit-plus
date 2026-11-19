@@ -26,6 +26,8 @@ routes announce scope, checkpoint selection, refresh the overview, and require
 and call `specify-runtime execution complete` only after fresh passing validation
 and terminal workflow state.
 
+For a manual leader Work, announce `execution announce --workflow quick --subject-id <quick-id>` with the complete confirmed write scope, the Quick workspace, and `.planning/quick/index.json`. Omit `--item-id`, even for a single Q1. An existing item-scoped closeout with `terminal_scope_requires_joined_binding` follows the recovery command in `quick status` and `references/validation-and-closeout.md`.
+
 ## Senior Consequence Analysis Summary
 
 Before continuing past the gate for lifecycle-sensitive, destructive,

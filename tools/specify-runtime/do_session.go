@@ -106,17 +106,18 @@ type DoRecovery struct {
 }
 
 type DoValidation struct {
-	Status             string   `json:"status"`
-	EvidenceOrigin     string   `json:"evidence_origin"`
-	DefinitionDigest   string   `json:"definition_digest"`
-	SourceFingerprint  string   `json:"source_fingerprint"`
-	EvidenceDigest     string   `json:"evidence_digest"`
-	RequiredSteps      int      `json:"required_steps"`
-	RequiredChecks     int      `json:"required_checks"`
-	ChangedSourcePaths []string `json:"changed_source_paths"`
-	CognitionCloseout  string   `json:"cognition_closeout"`
-	VerifiedAt         string   `json:"verified_at"`
-	Blockers           []string `json:"blockers"`
+	Status              string   `json:"status"`
+	EvidenceOrigin      string   `json:"evidence_origin"`
+	DefinitionDigest    string   `json:"definition_digest"`
+	SourceFingerprint   string   `json:"source_fingerprint"`
+	EvidenceDigest      string   `json:"evidence_digest"`
+	RequiredSteps       int      `json:"required_steps"`
+	RequiredChecks      int      `json:"required_checks"`
+	ChangedSourcePaths  []string `json:"changed_source_paths"`
+	CognitionCloseout   string   `json:"cognition_closeout"`
+	VerifiedAt          string   `json:"verified_at"`
+	Blockers            []string `json:"blockers"`
+	sourceCloseoutReady bool
 }
 
 type DoKnowledgeReceipt struct {

@@ -13,6 +13,13 @@ import (
 // package. They are intentionally separate from the stdlib-only unit tests.
 func newQuickOptimizationFixture(t *testing.T) (string, string, string) {
 	t.Helper()
+	root, workspace, id := newUnboundQuickOptimizationFixture(t)
+	bindQuickExecutionWork(t, root, id)
+	return root, workspace, id
+}
+
+func newUnboundQuickOptimizationFixture(t *testing.T) (string, string, string) {
+	t.Helper()
 	root := initCoordinationCLIRepository(t)
 	id := "260914-001"
 	workspace := filepath.Join(root, ".planning", "quick", id+"-optimize")
@@ -64,7 +71,6 @@ project_cognition_refresh:
 	if env.Status != "ok" {
 		t.Fatalf("confirm: %v", env.Blockers)
 	}
-	bindQuickExecutionWork(t, root, id)
 	return root, workspace, id
 }
 

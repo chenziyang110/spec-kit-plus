@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from enum import Enum
+from pathlib import Path
 import re
-from typing import Any
+from typing import Any, get_args
 
 import click
 import typer
@@ -185,12 +187,37 @@ def _walk_commands(
 
 
 def _type_record(parameter: Any) -> dict[str, Any]:
-    parameter_type = parameter.type
-    record: dict[str, Any] = {"name": parameter_type.name or "value"}
-    choices = getattr(parameter_type, "choices", None)
+    click_type = getattr(parameter, "type", None)
+    if click_type is not None:
+        type_name = click_type.name or "value"
+        choices = getattr(click_type, "choices", None)
+        case_sensitive = getattr(click_type, "case_sensitive", True)
+    else:
+        # Recent Typer versions resolve coercion from the parameter annotation.
+        descriptor = parameter.type_descriptor
+        choices = descriptor.choices
+        case_sensitive = descriptor.case_sensitive
+        annotation = descriptor.annotation
+        if descriptor.is_list:
+            (annotation,) = get_args(annotation)
+        if choices is not None:
+            type_name = "choice"
+            choices = [choice.value if isinstance(choice, Enum) else choice for choice in choices]
+        elif descriptor.is_path or annotation is Path:
+            type_name = "path"
+        elif descriptor.is_ranged:
+            type_name = f"{descriptor.ranged_type_name} range"
+        elif descriptor.is_file:
+            type_name = "file"
+        elif annotation is bool:
+            type_name = "boolean"
+        else:
+            type_name = getattr(annotation, "__name__", None) or "value"
+
+    record: dict[str, Any] = {"name": type_name}
     if choices is not None:
         record["choices"] = [str(choice) for choice in choices]
-        record["case_sensitive"] = bool(getattr(parameter_type, "case_sensitive", True))
+        record["case_sensitive"] = bool(case_sensitive)
     return record
 
 

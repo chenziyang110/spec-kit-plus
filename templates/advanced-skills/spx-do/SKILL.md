@@ -92,8 +92,10 @@ Preserve existing sessions and methods; never fall back to Python or authored st
 ## Source Mutation Closeout
 
 When retained source, scripts, tests, or configuration changed, read
-`references/project-cognition.md` and run this registry-owned planner with the
-exact session identity and owned source paths:
+`references/project-cognition.md`. Use `do next`'s
+`data.source_closeout.plan_argv` with the exact source binding, or its
+`recovery_argv` for an existing blocker. For older runtimes, use the exact
+changed source paths from `do validate` with the planner below.
 
 Use the project root as the native process working directory; the planner does
 not accept a `--project-root` flag.
@@ -112,8 +114,11 @@ repair, and exact replay contract on interruption. Clean completion requires
 the receipt-bound finalizer to succeed when globally eligible; preserve a
 truthful `scope_ready` receipt with unrelated global debt otherwise. Never stamp
 a second receipt, construct direct updates, or treat an entry map status as
-source closeout. `do validate` must accept the exact session-bound result before
-execution can be finished.
+source closeout. Successful apply or replay returns `data.do_continuation`.
+Add a truthful `change_summary` to its `complete_input` and run
+`complete_argv`, or use that revision for explicit finish-pending.
+Complete and finish revalidate the live source and receipt. On older
+runtimes, use `do next` for the current continuation.
 
 For an actual blocked exit read `references/blocker-resolution.md`. State the
 session, failed gate, evidence, attempted recovery, next action, unblock condition,

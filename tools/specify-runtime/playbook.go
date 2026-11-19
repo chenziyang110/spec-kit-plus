@@ -55,6 +55,15 @@ func runPlaybook(args []string, stdout io.Writer) int {
 			err = doReadInput(optionValue(args, "--input-json", ""), &request)
 			if err == nil {
 				data, err = updatePlaybook(root, request)
+				if err == nil && request.SessionID != "" && !request.ProposalOnly {
+					if receipt, ok := data["knowledge_receipt"].(map[string]any); ok {
+						session, _, readErr := loadDoSession(root, request.SessionID)
+						if readErr == nil && session.ExecutionOutcome == "passed" && session.KnowledgeStatus == "pending" {
+							data["finish_argv"] = []string{"specify-runtime", "do", "finish", session.ID, "--input-json", "-", "--format", "json"}
+							data["finish_input"] = map[string]any{"expected_revision": session.Revision, "knowledge_status": "saved", "knowledge": receipt}
+						}
+					}
+				}
 			}
 		}
 	case "validate":
