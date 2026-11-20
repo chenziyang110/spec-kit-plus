@@ -491,17 +491,22 @@ func validatePlaybookAction(root, id, purpose, cwd string, argv []string, script
 	if len(argv) > 128 || (requireArgv && len(argv) == 0) {
 		return fmt.Errorf("playbook_argv_invalid")
 	}
+	executable := ""
+	if len(argv) > 0 {
+		executable = playbookExecutableName(argv[0])
+	}
 	for i, arg := range argv {
 		if len(arg) > 8192 || strings.ContainsRune(arg, '\x00') || (i == 0 && strings.TrimSpace(arg) == "") {
 			return fmt.Errorf("playbook_argv_invalid")
 		}
-		name, value, hasValue := strings.Cut(arg, "=")
-		name = strings.TrimLeft(strings.ToLower(name), "-")
-		if regexp.MustCompile(`^(token|password|passwd|secret|api[-_]?key|access[-_]?token|authorization|client[-_]?secret)$`).MatchString(name) {
+		option, value, hasValue := strings.Cut(arg, "=")
+		name := strings.TrimLeft(option, "-")
+		property := playbookBuilderProperty(executable, option)
+		if playbookSecretField.MatchString(name) || (i > 0 && playbookBuildCredentialField.MatchString(property)) {
 			if !hasValue && i+1 < len(argv) {
 				value = argv[i+1]
 			}
-			if !regexp.MustCompile(`^\$\{[A-Z_][A-Z0-9_]*\}$`).MatchString(value) {
+			if !playbookEnvironmentBinding.MatchString(value) {
 				return fmt.Errorf("playbook_sensitive_argument_requires_environment_binding: pointer=/argv/%d rule=credential_argument", i)
 			}
 		}

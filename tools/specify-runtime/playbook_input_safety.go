@@ -13,14 +13,30 @@ import (
 
 var playbookSecretField = regexp.MustCompile(`(?i)^(token|password|passwd|secret|api[-_]?key|access[-_]?token|authorization|client[-_]?secret)$`)
 var playbookEnvironmentBinding = regexp.MustCompile(`^\$\{[A-Z_][A-Z0-9_]*\}$`)
-var playbookPublicPathToken = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
+var playbookPublicPathToken = regexp.MustCompile(`^[\p{L}\p{M}\p{N}._/-]+$`)
 var playbookPowerShellPreference = regexp.MustCompile(`(?i)^\$(?:ErrorAction|Progress|Warning|Information|Verbose|Debug|Confirm|WhatIf)Preference=?$`)
-var playbookPublicArtifactPath = regexp.MustCompile(`(?i)^(?:[a-z]:)?(?:[\\/]{1,2})?(?:[a-z0-9._-]+[\\/])*([a-z][a-z0-9._-]*[._-][0-9]+(?:[._-][a-z0-9]+)*\.(?:exe|dll|msi|msix|msixbundle|zip|7z|cab|iso|wim|esd|tar|gz|bz2|xz))$`)
+var playbookPublicArtifactPath = regexp.MustCompile(`(?i)^(?:[a-z]:)?/{0,2}(?:[\p{L}\p{M}\p{N}._-]+/)*([a-z](?:[a-z0-9._-]*[._-][0-9]+(?:[._-][a-z0-9]+)*|[a-z_-]*[0-9]{2,8}[a-z]{0,5})\.(?:exe|dll|msi|msix|msixbundle|zip|7z|cab|iso|wim|esd|tar|gz|bz2|xz))$`)
+var playbookBuildFlagName = regexp.MustCompile(`(?i)^[a-z][a-z_-]{0,63}$`)
+var playbookBuildFlagValue = regexp.MustCompile(`(?i)^(?:true|false|[0-9]{1,6})$`)
+var playbookBuildSelectorValue = regexp.MustCompile(`(?i)^[a-z][a-z0-9_.-]{0,63}$`)
+var playbookBuildCredentialField = regexp.MustCompile(`(?i)(?:password|passwd|secret|token|authorization|credentials?|(?:api|access|license|private|signing)[-_]?key)$`)
 
 func playbookAddPublicPathTokens(tokens map[string]bool, value string) {
 	for _, part := range strings.Split(value, "/") {
 		tokens[part] = true
 	}
+}
+
+func playbookExistingScript(root, source string) bool {
+	if !playbookScriptPath(source) || !playbookPublicPathToken.MatchString(source) {
+		return false
+	}
+	target, err := playbookSafePath(root, source, false)
+	if err != nil {
+		return false
+	}
+	info, err := os.Lstat(target)
+	return err == nil && info.Mode().IsRegular()
 }
 
 // Inspect field values rather than JSON punctuation. Only the entropy fallback
@@ -41,19 +57,60 @@ func validatePlaybookSensitiveContent(root string, definition PlaybookDefinition
 	if err := json.Unmarshal(raw, &decoded); err != nil {
 		return err
 	}
-	argvPublicTokens := map[string]map[string]bool{}
-	bindPublicTokens := func(pointer, cwd string, argv []string) {
+	argvScriptTokens := map[string]map[string]bool{}
+	argvPublicTokens := map[string]string{}
+	prosePublicTokens := map[string]bool{}
+	prosePointers := map[string]bool{"/title": true, "/goal": true}
+	bindProseScript := func(source string) {
+		if playbookExistingScript(root, source) {
+			prosePublicTokens[path.Base(source)] = true
+		}
+	}
+	for _, source := range definition.SourceFiles {
+		bindProseScript(source)
+	}
+	bindProseScript(definition.Owner)
+	argvCredentialPointers := map[string]bool{}
+	bindPublicTokens := func(pointer, cwd, script string, argv []string) {
+		prosePointers[pointer+"/purpose"] = true
+		prosePointers[pointer+"/expected_result"] = true
+		bindProseScript(script)
 		sources, err := playbookActionScriptSources(root, cwd, argv)
-		if err != nil {
+		if err != nil || len(argv) == 0 {
 			return
 		}
-		tokens := map[string]bool{}
+		scriptTokens := map[string]bool{}
 		for _, source := range sources {
 			if playbookPublicPathToken.MatchString(source) {
-				playbookAddPublicPathTokens(tokens, source)
+				playbookAddPublicPathTokens(scriptTokens, source)
+				bindProseScript(source)
 			}
 		}
-		argvPublicTokens[pointer] = tokens
+		argvScriptTokens[pointer+"/argv"] = scriptTokens
+		executable := playbookExecutableName(argv[0])
+		fileScript := playbookPowerShellFileScriptIndex(root, cwd, argv)
+		for i, arg := range argv {
+			if i > 0 && !playbookDirectDataArgument(executable, fileScript, i) {
+				continue
+			}
+			argumentPointer := pointer + "/argv/" + strconv.Itoa(i)
+			if i > 0 && fileScript >= 0 {
+				option, value, assigned := strings.Cut(arg, "=")
+				name := strings.TrimLeft(option, "-")
+				if assigned && playbookBuildFlagName.MatchString(name) && playbookBuildCredentialField.MatchString(name) && !playbookEnvironmentBinding.MatchString(value) {
+					argvCredentialPointers[argumentPointer] = true
+				}
+			}
+			// Only the versioned basename is public; directories and
+			// arbitrary shell text are still scanned normally.
+			if basename := playbookPublicArtifactBasename(arg); basename != "" {
+				argvPublicTokens[argumentPointer] = basename
+			} else if i > 0 && playbookPublicBuildSetting(executable, fileScript >= 0, arg) {
+				// MSBuild /p:Key=Value (and typed CMake -D) may be
+				// split on a colon by the entropy detector.
+				argvPublicTokens[argumentPointer] = arg[strings.LastIndex(arg, ":")+1:]
+			}
+		}
 	}
 	// The definition validator checks these paths and their existing parents
 	// before sensitivity validation. A reusable template is checked via its
@@ -62,14 +119,14 @@ func validatePlaybookSensitiveContent(root string, definition PlaybookDefinition
 	typedPathPointers := map[string]bool{}
 	for index, step := range definition.Steps {
 		pointer := "/steps/" + strconv.Itoa(index)
-		bindPublicTokens(pointer+"/argv", step.Cwd, step.Argv)
+		bindPublicTokens(pointer, step.Cwd, step.ScriptRef, step.Argv)
 		for i := range step.SourceWrites {
 			typedPathPointers[pointer+"/source_writes/"+strconv.Itoa(i)] = true
 		}
 	}
 	for index, check := range definition.Checks {
 		pointer := "/checks/" + strconv.Itoa(index)
-		bindPublicTokens(pointer+"/argv", check.Cwd, check.Argv)
+		bindPublicTokens(pointer, check.Cwd, check.ScriptRef, check.Argv)
 		switch check.Kind {
 		case "file", "json", "junit":
 			typedPathPointers[pointer+"/result_path"] = true
@@ -106,35 +163,22 @@ func validatePlaybookSensitiveContent(root string, definition PlaybookDefinition
 				}
 			}
 		case string:
+			if argvCredentialPointers[pointer] {
+				return fmt.Errorf("playbook_sensitive_argument_requires_environment_binding: pointer=%s rule=credential_argument", pointer)
+			}
 			if playbookSecretField.MatchString(key) && !playbookEnvironmentBinding.MatchString(item) {
 				return fmt.Errorf("playbook_sensitive_content_rejected_use_environment_bindings: pointer=%s rule=credential_field", pointer)
 			}
 			projection := regexp.MustCompile(`\$\{[A-Z_][A-Z0-9_]*\}`).ReplaceAllString(item, "[REDACTED_SECRET]")
 			publicTokens := map[string]bool{}
-			for token := range argvPublicTokens[path.Dir(pointer)] {
-				publicTokens[token] = true
-			}
 			if typedPathPointers[pointer] && playbookPublicPathToken.MatchString(item) {
 				playbookAddPublicPathTokens(publicTokens, item)
-			}
-			// Versioned package filenames are public command data, even before
-			// the output exists. Only their basename bypasses the entropy
-			// fallback; directories, shell text and deterministic secret/policy
-			// detectors retain their existing checks.
-			if key == "argv" {
-				if basename := playbookPublicArtifactBasename(item); basename != "" {
-					publicTokens[basename] = true
-				}
 			}
 			// A canonical owner may name an existing project script rather than
 			// a person or service. Exempt only its verified path components from
 			// entropy; deterministic credentials and project policy still apply.
-			if pointer == "/owner" && playbookScriptPath(item) && playbookPublicPathToken.MatchString(item) {
-				if target, pathErr := playbookSafePath(root, item, false); pathErr == nil {
-					if info, statErr := os.Lstat(target); statErr == nil && info.Mode().IsRegular() {
-						playbookAddPublicPathTokens(publicTokens, item)
-					}
-				}
+			if pointer == "/owner" && playbookExistingScript(root, item) {
+				playbookAddPublicPathTokens(publicTokens, item)
 			}
 			if key == "source_files" || key == "script_ref" || key == "cwd" || (key == "argv" && playbookScriptPath(item)) {
 				candidate := strings.TrimPrefix(strings.ReplaceAll(item, "\\", "/"), "./")
@@ -145,7 +189,9 @@ func validatePlaybookSensitiveContent(root string, definition PlaybookDefinition
 				}
 			}
 			redacted := redactLearningTextWithPolicyAndEntropyFilter(projection, policy, func(token string) bool {
-				return publicTokens[token] || (key == "argv" && playbookPowerShellPreference.MatchString(token))
+				return publicTokens[token] || argvScriptTokens[path.Dir(pointer)][token] || argvPublicTokens[pointer] == token ||
+					(prosePointers[pointer] && prosePublicTokens[token]) ||
+					(key == "argv" && playbookPowerShellPreference.MatchString(token))
 			})
 			if redacted.text != projection {
 				return fmt.Errorf("playbook_sensitive_content_rejected_use_environment_bindings: pointer=%s rule=%s", pointer, strings.Join(redacted.labels, ","))
@@ -169,10 +215,89 @@ func playbookPublicArtifactBasename(value string) string {
 			return ""
 		}
 	}
-	if match := playbookPublicArtifactPath.FindStringSubmatch(value); match != nil {
+	if match := playbookPublicArtifactPath.FindStringSubmatch(normalized); match != nil {
 		return match[1]
 	}
 	return ""
+}
+
+func playbookExecutableName(value string) string {
+	return strings.TrimSuffix(strings.ToLower(path.Base(strings.ReplaceAll(value, "\\", "/"))), ".exe")
+}
+
+func playbookDirectDataArgument(executable string, fileScript, index int) bool {
+	switch executable {
+	case "powershell", "pwsh":
+		return fileScript >= 0 && index > fileScript
+	case "cmd", "sh", "bash", "zsh", "dash", "ksh", "fish", "node", "ruby", "perl", "wsl":
+		return false
+	default:
+		return !strings.HasPrefix(executable, "python")
+	}
+}
+
+// Parse only the property syntaxes these build tools know; arbitrary commands
+// and inline shell programs do not get a general key=value exemption.
+func playbookBuilderProperty(executable, option string) string {
+	switch executable {
+	case "msbuild", "dotnet":
+		if key, ok := strings.CutPrefix(option, "/"); ok {
+			option = "-" + key
+		}
+		lower := strings.ToLower(option)
+		for _, prefix := range []string{"-p:", "-property:"} {
+			if strings.HasPrefix(lower, prefix) {
+				return lower[len(prefix):]
+			}
+		}
+	case "cmake":
+		if property, ok := strings.CutPrefix(option, "-D"); ok {
+			name, _, _ := strings.Cut(property, ":") // -DNAME[:TYPE]=value
+			return strings.ToLower(name)
+		}
+	}
+	return ""
+}
+
+func playbookPublicBuildSetting(executable string, fixedPowerShellScript bool, arg string) bool {
+	option, value, ok := strings.Cut(arg, "=")
+	if !ok {
+		return false
+	}
+	name := playbookBuilderProperty(executable, option)
+	if name != "" {
+		if playbookBuildCredentialField.MatchString(name) {
+			return false
+		}
+		if playbookBuildFlagName.MatchString(name) && playbookBuildFlagValue.MatchString(value) {
+			return true
+		}
+	}
+	if fixedPowerShellScript {
+		name := strings.TrimLeft(option, "-")
+		return !playbookBuildCredentialField.MatchString(name) && playbookBuildFlagName.MatchString(name) && playbookBuildFlagValue.MatchString(value)
+	}
+	if executable == "dotnet" && name == "" {
+		switch strings.ToLower(option) {
+		case "--configuration", "--framework", "--runtime", "--arch", "--os":
+			name = "configuration" // These options take a single selector.
+		}
+	}
+	switch name {
+	case "configuration", "platform", "platformtarget", "targetframework", "runtimeidentifier":
+		if executable == "cmake" {
+			return false
+		}
+	case "cmake_build_type":
+		if executable != "cmake" {
+			return false
+		}
+	default:
+		return false
+	}
+	// A documented selector's value is still scanned separately, so a
+	// genuinely opaque value can't borrow the option name's exemption.
+	return playbookBuildSelectorValue.MatchString(value) && redactLearningText(value).text == value
 }
 
 func playbookScriptPath(value string) bool {
@@ -211,7 +336,7 @@ func playbookActionScriptSources(root, cwd string, argv []string) ([]string, err
 	if err := add(argv[0]); err != nil {
 		return nil, err
 	}
-	executable := strings.TrimSuffix(strings.ToLower(path.Base(strings.ReplaceAll(argv[0], "\\", "/"))), ".exe")
+	executable := playbookExecutableName(argv[0])
 	powershell := executable == "pwsh" || executable == "powershell"
 	interpreter := powershell || executable == "bash" || executable == "sh" || executable == "zsh" || executable == "cmd" || executable == "node" || executable == "ruby" || executable == "perl" || regexp.MustCompile(`^python(?:[0-9.]+)?$`).MatchString(executable)
 	if !interpreter {

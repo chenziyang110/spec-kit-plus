@@ -45,13 +45,16 @@ reruns the build as a default check. Pass the returned canonical `start_input`
 unchanged to `do start`, then execute through the normal native tool packets.
 Complete saves the method only after actual execution and verification.
 
-For fixed PowerShell `-File` scripts, whole argv data parameters after the script
-may be bound on later reuse; executable, host mode, script and cwd stay fixed.
+For fixed `powershell.exe` or `pwsh` `-File` scripts, bind whole argv data items
+after the script on later reuse, for example `"-ver", "{{param:revision}}"`.
+The executable, host options, project script and cwd stay fixed. Do not use
+placeholders with `-Command`, or embed them inside script bodies or argv strings.
 String parameters require `pattern`, enums require `allowed_values`, and
 optional parameters require `default`; these conditions are in the public
 schema. Cwd is `.` or a canonical project-relative path. Prepare reports
 independent parameter/cwd mistakes together and never directs recovery to an
-uncreated session.
+uncreated session. If an older pinned runtime rejects fixed-script bindings,
+upgrade the project's runtime, not only the `specify` CLI.
 
 When several Do sessions belong to the same integration, select the requested
 session explicitly with the native invocation suffix `resume <session-id>`, for
@@ -66,6 +69,31 @@ advance `specify -> plan -> tasks -> implement -> review -> accept`. Quick,
 Implement and E2E may retrieve a relevant method through `playbook find/show`.
 
 Each workflow retains its own Work, validation ledgers and acceptance gates.
+
+### Compile, then package
+
+For several actions in one session, use a `definition` with ordered steps and
+explicit checks. Invoke the existing builder directly, for example
+`["MSBuild.exe", "App.sln", "/p:Configuration=ReleaseJxly", "/p:Platform=x64"]`,
+instead of wrapping it in PowerShell `-Command`. Common build selectors for
+MSBuild, CMake and dotnet can stay in argv. Use environment bindings for
+credentials, not literal property values.
+
+### Multi-product builds with shared staging
+
+When products would overwrite the same staging files or verification paths,
+run one DoSession per product. Verify and close each session before starting
+the next one. Keep each product's deliverable and any verification files at
+paths the next build will not overwrite. If the script supports per-product
+staging, use separate paths so the builds cannot invalidate each other's
+evidence.
+
+Declare disposable generated staging in `output_scope`, not as a durable
+verification artifact. Keep pre-existing consumed files in the method's input
+closure (`source_files` and `script_ref`); if a shared file must stay verifiable
+later, bind the snapshot the script actually consumes. Declare retained
+source changes in `write_scope` and the producer's `source_writes`. Splitting
+sessions does not make old evidence current after a bound file changes.
 
 ## Knowledge boundaries
 
@@ -160,6 +188,10 @@ Process observations retain the real handle, argv/cwd, timestamps, tool-call
 identity, exit result and output references. File/browser/desktop/connector
 actions retain their typed action and actual JSON observation instead; do not
 invent process fields. Completion cannot create its start retrospectively.
+Use the native tool's actual RFC 3339 timestamps. Do permits up to two seconds
+before the registered start or ahead of the runtime clock to account for
+coarse timestamps. Finish must follow or equal start, and dependency and
+evidence freshness checks still apply.
 Timeout, cancellation and unknown native outcomes remain interrupted.
 
 Dependencies bind to concrete attempts. After a producer runs again, its
@@ -206,6 +238,24 @@ JSON mutations accept inline objects or `-` for UTF-8 standard input. Prefer
 standard input for substantial or quoting-sensitive payloads. Runtime schemas
 are authoritative; do not invent flags or edit generated state. Duplicate keys,
 unknown fields and invalid nested method shapes are rejected.
+
+Windows PowerShell 5.1 normally sends ASCII to native programs. It can replace
+Chinese text with question marks even when the JSON parses. Given a PowerShell
+object `$request`, serialize it and set the pipeline encoding in a child scope
+before invoking the project runtime:
+
+```powershell
+$payload = $request | ConvertTo-Json -Depth 64 -Compress
+& {
+    $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+    $payload | & '.\.specify\bin\specify-runtime.exe' do prepare --input-json - --format json
+}
+```
+
+For an existing UTF-8 JSON file, read it with `Get-Content -Raw -Encoding UTF8`
+and use the same pipeline. UTF-8 with a leading BOM is accepted. UTF-16 and
+invalid UTF-8 require resending the original data as UTF-8. See Microsoft's
+[`$OutputEncoding` documentation](https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_preference_variables?view=powershell-5.1#outputencoding).
 
 Useful reads:
 

@@ -185,7 +185,11 @@ requires both. Provide exactly one of:
 
 Runtime derives `evidence_sha256`; never provide it. A failed read-only check
 with empty write/output scopes can use inline evidence without creating a log
-or broadening permissions. For `do resume <id> --input-json -`, substitute real
+or broadening permissions. In Windows PowerShell 5.1 set
+`$OutputEncoding = [System.Text.UTF8Encoding]::new($false)` in the pipeline's
+script scope before sending JSON to stdin. Record actual RFC 3339 observations.
+Do permits two seconds of clock alignment and enforces chronology and evidence
+freshness. For `do resume <id> --input-json -`, substitute real
 session values and native observations in this illustrative payload:
 
 ```json
@@ -238,6 +242,13 @@ Preflight dependency/include/resource/font/SDK/config/tool availability, exact
 PowerShell 5/7 context and peak free space across mirror/build/staging/archive/
 extraction volumes before heavy work. Keep native process handles separate from
 orchestration cell IDs; poll running handles and parse only completed output.
+
+When builds overwrite shared staging or verification paths, use one DoSession
+per product and verify and close each before the next build. Keep evidence and
+deliverables at stable product-specific paths. Generated scratch belongs in
+`output_scope`; pre-existing read dependencies belong in the bound input
+basis, and retained source edits in `write_scope`/`source_writes`. Bind a
+snapshot that the script actually consumes if the input must be verifiable later.
 
 For inspected unrelated unclaimed changes, `do resume` accepts
 `external_changes:{"paths":["exact/path"]}`, current `expected_revision` and

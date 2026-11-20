@@ -163,6 +163,11 @@ share the returned revision and are not an already-recorded batch. `running`
 identifies existing attempts to observe/reconcile, not permission to rerun them.
 Direct `do record` remains available through its schema. Never invent tool IDs,
 timestamps, status, exit codes or results to fill a skeleton.
+Send JSON as UTF-8 on stdin. In Windows PowerShell 5.1 use
+`$OutputEncoding = [System.Text.UTF8Encoding]::new($false)` in the pipeline's
+script scope so names and paths keep their characters. Report actual RFC 3339
+times. The runtime allows two seconds of clock alignment, while requiring
+start/finish order and current dependency evidence.
 
 Process actions record exact argv/cwd, real exit status and result references.
 A `native_action` instead freezes `kind=file|browser|desktop|connector`, `tool`,
@@ -287,6 +292,13 @@ closure. Never hide executable script bodies in environment variables; secrets
 alone use environment bindings. A changed bound script requires replan or fresh
 verification. Public paths and ordinary shell preferences are not secrets;
 sensitive errors identify only a JSON pointer and rule, never the rejected value.
+
+When products overwrite shared staging or verification paths, use one DoSession
+per product. Keep deliverables and durable checks at product-specific paths;
+verify and close each session before the next product changes shared files.
+Scope generated scratch with `output_scope` and retained source edits with
+`write_scope` and `source_writes`. Bind pre-existing read dependencies; if
+later verification needs a shared input, bind the snapshot the script consumes.
 
 Before heavy copying/building, check the required include roots, resources,
 fonts, SDK/config, packaging tool, shell version and peak free space for mirror,

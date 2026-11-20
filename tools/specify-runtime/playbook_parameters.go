@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path"
 	"reflect"
 	"regexp"
@@ -308,7 +309,7 @@ func playbookPowerShellFileScriptIndex(root, cwd string, argv []string) int {
 	if len(argv) < 3 {
 		return -1
 	}
-	command := strings.TrimSuffix(strings.ToLower(path.Base(strings.ReplaceAll(argv[0], "\\", "/"))), ".exe")
+	command := playbookExecutableName(argv[0])
 	if command != "pwsh" && command != "powershell" {
 		return -1
 	}
@@ -334,10 +335,11 @@ func playbookPowerShellFileScriptIndex(root, cwd string, argv []string) int {
 				return -1
 			}
 			relative := path.Clean(path.Join(cwd, script))
-			if _, err := playbookSafePath(root, relative, false); err != nil {
+			target, err := playbookSafePath(root, relative, false)
+			if err != nil {
 				return -1
 			}
-			if _, err := secureProjectReadFile(root, relative); err != nil {
+			if info, err := os.Lstat(target); err != nil || !info.Mode().IsRegular() {
 				return -1
 			}
 			return i + 1

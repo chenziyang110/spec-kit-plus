@@ -187,7 +187,7 @@ func sanitizeLearningEntryWithPolicy(entry map[string]any, policy learningPolicy
 		"summary", "evidence", "decisive_signal", "root_cause_family", "promotion_hint", "problem", "lesson", "recommended_action",
 	} {
 		if value, ok := prepared[key].(string); ok {
-			redacted := redactLearningTextWithPolicy(value, policy)
+			redacted := redactLearningTextWithPolicyAndEntropyFilter(value, policy, learningProseEntropyFilter(key))
 			prepared[key] = redacted.text
 			mergeLearningPolicyLabels(labels, redacted.labels)
 		}

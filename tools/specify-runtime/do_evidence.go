@@ -31,6 +31,8 @@ type doAction struct {
 	nativeAction       *PlaybookNativeAction
 }
 
+const doObservationClockTolerance = 2 * time.Second
+
 func doFindAction(session DoSession, kind, id string) (doAction, error) {
 	if kind == "step" {
 		for _, step := range session.Definition.Steps {
@@ -168,7 +170,19 @@ func doApplyRecordEvent(root string, session DoSession, event doRecordEvent, pre
 	if err != nil {
 		return session, nil, fmt.Errorf("finished_at must be RFC3339")
 	}
-	registered, _ := time.Parse(time.RFC3339Nano, attempt.RegisteredAt)
+	registered, err := time.Parse(time.RFC3339Nano, attempt.RegisteredAt)
+	if err != nil {
+		return session, nil, fmt.Errorf("registered_at is invalid in the stored attempt; inspect the session before retrying")
+	}
+	if started.Before(registered.Add(-doObservationClockTolerance)) {
+		return session, nil, fmt.Errorf("observation times are outside the registered attempt: started_at is more than %s before registered_at (%s)", doObservationClockTolerance, attempt.RegisteredAt)
+	}
+	if finished.Before(started) {
+		return session, nil, fmt.Errorf("observation times are outside the registered attempt: finished_at precedes started_at")
+	}
+	if finished.After(time.Now().UTC().Add(doObservationClockTolerance)) {
+		return session, nil, fmt.Errorf("observation times are outside the registered attempt: finished_at is more than %s ahead of the runtime clock", doObservationClockTolerance)
+	}
 	evidenceBoundary := registered
 	if action.check != nil {
 		latest := doLatestAttempts(session)
@@ -180,9 +194,6 @@ func doApplyRecordEvent(root string, session DoSession, event doRecordEvent, pre
 				}
 			}
 		}
-	}
-	if started.Before(registered.Add(-2*time.Second)) || finished.Before(started) || finished.After(time.Now().UTC().Add(2*time.Second)) {
-		return session, nil, fmt.Errorf("observation times are outside the registered attempt")
 	}
 	if event.Status != "passed" && event.Status != "failed" && event.Status != "interrupted" {
 		return session, nil, fmt.Errorf("status must be passed, failed, or interrupted")

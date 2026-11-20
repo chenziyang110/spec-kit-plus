@@ -42,7 +42,9 @@ locate a triggered contract.
 
 1. Resolve the goal, target, platform, output location, acceptance checks, and
    necessary write scope. Inspect live project entrypoints and relevant user
-   instructions; do not guess a build command from a framework name.
+   instructions; do not guess a build command from a framework name. When
+   products overwrite shared staging or verification paths, use one DoSession
+   per product and verify and close it before starting the next.
 2. **Execute first, learn after success.** On first use, when the maintained script is already
    known, prepare its literal argv through `do prepare`'s compact `command`
    input. Supply the goal, identity, output/write scopes and a small explicit

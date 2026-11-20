@@ -20,8 +20,11 @@ Preserve existing sessions and methods; never fall back to Python or authored st
 
 1. Establish the real entrypoint, requested result, acceptance checks, current
    environment, output scope, and authorized source write scope. Preserve other
-   work and existing external-side-effect approvals. Do not create a formal
-   feature, Activity, second Work, or retired Run; `do start` binds `do:<id>`.
+   work and existing external-side-effect approvals. For each invocation, do
+   not create a formal feature, Activity, companion Work, or retired Run;
+   `do start` binds `do:<id>`.
+   If products overwrite shared staging or verification paths, verify and
+   close one DoSession per product before starting the next.
 2. **Execute first, learn after success.** On first use of a known maintained script, use
    prepare's compact `command` input with literal current argv, explicit small
    checks and authorized scopes. Runtime derives metadata and binds the script.

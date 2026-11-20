@@ -14,6 +14,21 @@ type learningRedactionResult struct {
 	labels []string
 }
 
+// For ordinary PowerShell script names the 1 in ".ps1" alone adds a
+// character class that the generic entropy heuristic treats as a secret.
+// This exception is for human-readable Learning prose, not arbitrary values
+// or keys. Real credential shapes and project policy still run first.
+var learningPublicScriptName = regexp.MustCompile(`(?i)^[a-z][a-z_-]{0,63}\.ps1$`)
+
+func learningProseEntropyFilter(field string) func(string) bool {
+	switch field {
+	case "summary", "evidence", "decisive_signal", "root_cause_family", "promotion_hint", "problem", "lesson", "recommended_action", "action":
+		return learningPublicScriptName.MatchString
+	default:
+		return nil
+	}
+}
+
 func redactLearningText(value string) learningRedactionResult {
 	return redactLearningTextWithEntropyFilter(value, nil)
 }
@@ -283,7 +298,11 @@ func sanitizeLearningAny(value any, labels map[string]bool) any {
 				sum := sha256.Sum256([]byte(key))
 				safeKey = "redacted-field-" + hex.EncodeToString(sum[:])[:12]
 			}
-			result[safeKey] = sanitizeLearningAny(item, labels)
+			if text, ok := item.(string); ok {
+				result[safeKey] = sanitizeLearningString(text, labels, learningProseEntropyFilter(key))
+			} else {
+				result[safeKey] = sanitizeLearningAny(item, labels)
+			}
 		}
 		return result
 	case map[string][]string:
@@ -305,14 +324,18 @@ func sanitizeLearningAny(value any, labels map[string]bool) any {
 		}
 		return result
 	case string:
-		redacted := redactLearningText(typed)
-		for _, label := range redacted.labels {
-			labels[label] = true
-		}
-		return redacted.text
+		return sanitizeLearningString(typed, labels, nil)
 	default:
 		return value
 	}
+}
+
+func sanitizeLearningString(value string, labels map[string]bool, publicToken func(string) bool) string {
+	redacted := redactLearningTextWithEntropyFilter(value, publicToken)
+	for _, label := range redacted.labels {
+		labels[label] = true
+	}
+	return redacted.text
 }
 
 func validLearningRedactionLabel(label string) bool {

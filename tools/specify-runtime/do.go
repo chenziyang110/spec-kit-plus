@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/filelock"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runcontrol"
@@ -273,6 +274,13 @@ func doReadInput(raw string, target any) error {
 	}
 	if len(data) > 256*1024 {
 		return fmt.Errorf("input exceeds 256 KiB")
+	}
+	// Windows PowerShell's UTF-8 files can start with a BOM. The pipeline
+	// still has to transport UTF-8; decoding arbitrary code pages would
+	// silently change parameters, paths and observed results.
+	data = bytes.TrimPrefix(data, []byte("\uFEFF"))
+	if !utf8.Valid(data) || bytes.IndexByte(data, 0) >= 0 {
+		return fmt.Errorf("input must be UTF-8 JSON; on Windows PowerShell 5.1 set $OutputEncoding to [System.Text.UTF8Encoding]::new($false) before piping to --input-json -")
 	}
 	if err := playbookRejectDuplicateKeys(data); err != nil {
 		return err
